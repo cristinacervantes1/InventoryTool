@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory Tool</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Inventory Tool</h1>
+      <p>Inventario de equipos</p>
+    </header>
+
+    <section class="toolbar">
+      <input type="text" id="searchInput" placeholder="Buscar por equipo, marca, modelo, SN o asignado..." />
+    </section>
+
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Brand</th>
+            <th>Model</th>
+            <th>SN</th>
+            <th>Team</th>
+            <th>Internal SN</th>
+            <th>Assignee</th>
+            <th>Labeled</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryTable">
+          <tr>
+            <td colspan="8">Loading inventory...</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
