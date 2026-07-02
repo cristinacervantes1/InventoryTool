@@ -1,114 +1,212 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <base target="_top">
-    <style>
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: #f5f7fb;
-        color: #172033;
+<head>
+  <base target="_top">
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f5f7fb; color: #172033; }
+    .login-page { max-width: 480px; margin: 80px auto; padding: 0 24px; }
+    .app { display: none; min-height: 100vh; }
+    .sidebar { width: 250px; background: #07142f; color: white; padding: 28px 20px; position: fixed; top: 0; left: 0; bottom: 0; }
+    .logo { font-size: 28px; font-weight: bold; margin-bottom: 42px; }
+    .menu-title { font-size: 12px; color: #8ea0c7; margin: 28px 0 10px; text-transform: uppercase; }
+    .menu-item { padding: 12px 14px; border-radius: 10px; margin-bottom: 8px; cursor: pointer; color: #dbe4ff; }
+    .menu-item:hover, .menu-item.active { background: #2563eb; color: white; }
+    .main { margin-left: 290px; padding: 40px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+    .header h1 { margin: 0; font-size: 32px; }
+    .header p, p { color: #667085; }
+    .card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 8px 24px rgba(16,24,40,.08); margin-top: 24px; overflow-x: auto; }
+    .button { background: #2563eb; color: white; border: none; border-radius: 10px; padding: 12px 18px; font-size: 15px; cursor: pointer; }
+    .button:hover { background: #1d4ed8; }
+    input { width: 100%; padding: 12px; margin-top: 18px; border: 1px solid #d0d5dd; border-radius: 10px; font-size: 14px; box-sizing: border-box; }
+    table { width: 100%; border-collapse: collapse; margin-top: 18px; min-width: 900px; }
+    th { background: #eef2ff; text-align: left; padding: 12px; font-size: 13px; }
+    td { padding: 12px; border-top: 1px solid #eaecf0; font-size: 14px; }
+    .badge { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: bold; display: inline-block; }
+    .available { background: #dcfce7; color: #166534; }
+    .assigned { background: #dbeafe; color: #1e40af; }
+    .empty { color: #667085; padding: 20px 0; }
+    .user-info { color: #667085; font-size: 14px; }
+  </style>
+</head>
+
+<body>
+  <div class="login-page" id="loginPage">
+    <h1>Inventory Tool</h1>
+    <p>Ingresa tu correo para continuar.</p>
+
+    <div class="card">
+      <h2>Login</h2>
+      <input type="email" id="emailInput" placeholder="correo@empresa.com">
+      <br><br>
+      <button class="button" onclick="loginUser()">Continuar</button>
+      <p id="loginMessage"></p>
+    </div>
+  </div>
+
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="logo">EssigQ</div>
+
+      <div class="menu-title">User</div>
+      <div class="menu-item active" id="menuMyInventory" onclick="showMyInventory()">My Inventory</div>
+      <div class="menu-item" id="menuMyRequests" onclick="showMyRequests()">My Requests</div>
+
+      <div id="adminMenu" style="display:none;">
+        <div class="menu-title">Admin</div>
+        <div class="menu-item" id="menuAdminInventory" onclick="showAdminInventory()">Inventory</div>
+        <div class="menu-item" id="menuAdminRequests" onclick="showAdminRequests()">Requests</div>
+        <div class="menu-item" id="menuUsers" onclick="showUsers()">Users</div>
+      </div>
+
+      <div class="menu-title">Session</div>
+      <div class="menu-item" onclick="logout()">Log Out</div>
+    </aside>
+
+    <main class="main">
+      <div class="header">
+        <div>
+          <h1 id="pageTitle">My Inventory</h1>
+          <p id="pageSubtitle">Estos son tus equipos asignados.</p>
+        </div>
+        <div class="user-info" id="userInfo"></div>
+      </div>
+
+      <div id="content"></div>
+    </main>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let currentData = [];
+
+    function loginUser() {
+      const email = document.getElementById("emailInput").value.trim();
+      const message = document.getElementById("loginMessage");
+
+      if (!email) {
+        message.textContent = "Ingresa un correo.";
+        return;
       }
 
-      .container {
-        max-width: 1200px;
-        margin: 40px auto;
-        padding: 0 24px;
+      message.textContent = "Validando usuario...";
+
+      google.script.run
+        .withSuccessHandler(function(user) {
+          if (!user) {
+            message.textContent = "Usuario no encontrado.";
+            return;
+          }
+
+          currentUser = user;
+
+          document.getElementById("loginPage").style.display = "none";
+          document.getElementById("app").style.display = "block";
+          document.getElementById("userInfo").textContent = `${user.Name} | ${user.Role}`;
+
+          // Reset admin menu every login
+          document.getElementById("adminMenu").style.display = "none";
+
+          if (String(user.Role || "").toLowerCase().trim() === "admin") {
+            document.getElementById("adminMenu").style.display = "block";
+          }
+
+          showMyInventory();
+        })
+        .withFailureHandler(function(error) {
+          message.textContent = "Error validando usuario: " + error.message;
+          console.error(error);
+        })
+        .getUserByEmail(email);
+    }
+
+    function setActiveMenu(activeId) {
+      document.querySelectorAll(".menu-item").forEach(item => item.classList.remove("active"));
+      const activeItem = document.getElementById(activeId);
+      if (activeItem) activeItem.classList.add("active");
+    }
+
+    function showMyInventory() {
+      setActiveMenu("menuMyInventory");
+      document.getElementById("pageTitle").textContent = "My Inventory";
+      document.getElementById("pageSubtitle").textContent = "Estos son tus equipos asignados.";
+
+      document.getElementById("content").innerHTML = `
+        <button class="button">+ Report Missing Equipment</button>
+        <div class="card">
+          <h2>My Equipment</h2>
+          <input type="text" id="searchInput" placeholder="Buscar en mi inventario..." oninput="filterTable()">
+          <div id="tableArea" class="empty">Cargando inventario...</div>
+        </div>
+      `;
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          currentData = data || [];
+          renderTable(currentData);
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById("tableArea").innerHTML = "Error cargando inventario: " + error.message;
+          console.error(error);
+        })
+        .getMyInventory(currentUser.Email);
+    }
+
+    function showAdminInventory() {
+      setActiveMenu("menuAdminInventory");
+      document.getElementById("pageTitle").textContent = "Admin Inventory";
+      document.getElementById("pageSubtitle").textContent = "Inventario general de equipos.";
+
+      document.getElementById("content").innerHTML = `
+        <div class="card">
+          <h2>Inventory</h2>
+          <input type="text" id="searchInput" placeholder="Buscar por equipo, marca, modelo, SN, Internal SN o asignado..." oninput="filterTable()">
+          <div id="tableArea" class="empty">Cargando inventario...</div>
+        </div>
+      `;
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          currentData = data || [];
+          renderTable(currentData);
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById("tableArea").innerHTML = "Error cargando inventario: " + error.message;
+          console.error(error);
+        })
+        .getAllInventory(currentUser.Email);
+    }
+
+    function showMyRequests() {
+      setActiveMenu("menuMyRequests");
+      document.getElementById("pageTitle").textContent = "My Requests";
+      document.getElementById("pageSubtitle").textContent = "Aquí aparecerán tus solicitudes.";
+      document.getElementById("content").innerHTML = `<div class="card"><h2>My Requests</h2><p class="empty">Esta sección será el siguiente paso.</p></div>`;
+    }
+
+    function showAdminRequests() {
+      setActiveMenu("menuAdminRequests");
+      document.getElementById("pageTitle").textContent = "Admin Requests";
+      document.getElementById("pageSubtitle").textContent = "Solicitudes pendientes de revisión.";
+      document.getElementById("content").innerHTML = `<div class="card"><h2>Requests</h2><p class="empty">Esta sección será el siguiente paso.</p></div>`;
+    }
+
+    function showUsers() {
+      setActiveMenu("menuUsers");
+      document.getElementById("pageTitle").textContent = "Users";
+      document.getElementById("pageSubtitle").textContent = "Usuarios registrados en la herramienta.";
+      document.getElementById("content").innerHTML = `<div class="card"><h2>Users</h2><p class="empty">Esta sección será el siguiente paso.</p></div>`;
+    }
+
+    function renderTable(data) {
+      const tableArea = document.getElementById("tableArea");
+
+      if (!data || data.length === 0) {
+        tableArea.innerHTML = `<p class="empty">No se encontraron equipos.</p>`;
+        return;
       }
 
-      h1 {
-        margin: 0;
-        font-size: 32px;
-      }
-
-      p {
-        color: #667085;
-      }
-
-      .card {
-        background: white;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
-        margin-top: 24px;
-        overflow-x: auto;
-      }
-
-      .button {
-        background: #2563eb;
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 12px 18px;
-        font-size: 15px;
-        cursor: pointer;
-      }
-
-      input {
-        width: 100%;
-        padding: 12px;
-        margin-top: 18px;
-        border: 1px solid #d0d5dd;
-        border-radius: 10px;
-        font-size: 14px;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 18px;
-        min-width: 900px;
-      }
-
-      th {
-        background: #eef2ff;
-        text-align: left;
-        padding: 12px;
-        font-size: 13px;
-      }
-
-      td {
-        padding: 12px;
-        border-top: 1px solid #eaecf0;
-        font-size: 14px;
-      }
-
-      .badge {
-        padding: 5px 10px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: bold;
-      }
-
-      .available {
-        background: #dcfce7;
-        color: #166534;
-      }
-
-      .assigned {
-        background: #dbeafe;
-        color: #1e40af;
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="container">
-      <h1>Inventory Tool</h1>
-      <p>Aplicación web para administrar inventario de equipos.</p>
-
-      <button class="button" onclick="loadInventory()">Mi inventario</button>
-
-      <div class="card">
-        <h2>Inventario</h2>
-
-        <input 
-          type="text" 
-          id="searchInput" 
-          placeholder="Buscar por equipo, marca, modelo, SN, Internal SN o asignado..."
-          oninput="filterTable()"
-        >
-
+      tableArea.innerHTML = `
         <table>
           <thead>
             <tr>
@@ -122,73 +220,50 @@
               <th>Labeled</th>
             </tr>
           </thead>
-          <tbody id="inventoryTable">
-            <tr>
-              <td colspan="8">Da clic en "Mi inventario" para cargar los datos.</td>
-            </tr>
+          <tbody>
+            ${data.map(item => {
+              const assignee = item.Assignee || "Available";
+              const badgeClass = assignee === "Available" ? "available" : "assigned";
+              return `
+                <tr>
+                  <td>${item.Device || ""}</td>
+                  <td>${item.Brand || ""}</td>
+                  <td>${item.Model || ""}</td>
+                  <td>${item.SN || ""}</td>
+                  <td>${item.Team || ""}</td>
+                  <td>${item["Internal SN"] || ""}</td>
+                  <td><span class="badge ${badgeClass}">${assignee}</span></td>
+                  <td>${item.Labeled || ""}</td>
+                </tr>
+              `;
+            }).join("")}
           </tbody>
         </table>
-      </div>
-    </div>
+      `;
+    }
 
-    <script>
-      let inventoryData = [];
+    function filterTable() {
+      const searchInput = document.getElementById("searchInput");
+      if (!searchInput) return;
 
-      function loadInventory() {
-        const tableBody = document.getElementById("inventoryTable");
-        tableBody.innerHTML = `<tr><td colspan="8">Cargando inventario...</td></tr>`;
+      const search = searchInput.value.toLowerCase();
 
-        google.script.run
-          .withSuccessHandler(function(data) {
-            inventoryData = data;
-            renderTable(inventoryData);
-          })
-          .withFailureHandler(function(error) {
-            tableBody.innerHTML = `<tr><td colspan="8">Error cargando inventario.</td></tr>`;
-            console.error(error);
-          })
-          .getAssets();
-      }
+      const filtered = currentData.filter(item =>
+        Object.values(item).some(value => String(value).toLowerCase().includes(search))
+      );
 
-      function renderTable(data) {
-        const tableBody = document.getElementById("inventoryTable");
+      renderTable(filtered);
+    }
 
-        if (!data || data.length === 0) {
-          tableBody.innerHTML = `<tr><td colspan="8">No se encontró inventario.</td></tr>`;
-          return;
-        }
-
-        tableBody.innerHTML = data.map(item => {
-          const assignee = item.Assignee || "Available";
-          const badgeClass = assignee === "Available" ? "available" : "assigned";
-
-          return `
-            <tr>
-              <td>${item.Device || ""}</td>
-              <td>${item.Brand || ""}</td>
-              <td>${item.Model || ""}</td>
-              <td>${item.SN || ""}</td>
-              <td>${item.Team || ""}</td>
-              <td>${item["Internal SN"] || ""}</td>
-              <td><span class="badge ${badgeClass}">${assignee}</span></td>
-              <td>${item.Labeled || ""}</td>
-            </tr>
-          `;
-        }).join("");
-      }
-
-      function filterTable() {
-        const search = document.getElementById("searchInput").value.toLowerCase();
-
-        const filtered = inventoryData.filter(item => {
-          return Object.values(item).some(value =>
-            String(value).toLowerCase().includes(search)
-          );
-        });
-
-        renderTable(filtered);
-      }
-      window.onload = loadInventory;
-    </script>
-  </body>
+    function logout() {
+      currentUser = null;
+      currentData = [];
+      document.getElementById("adminMenu").style.display = "none";
+      document.getElementById("app").style.display = "none";
+      document.getElementById("loginPage").style.display = "block";
+      document.getElementById("emailInput").value = "";
+      document.getElementById("loginMessage").textContent = "";
+    }
+  </script>
+</body>
 </html>
