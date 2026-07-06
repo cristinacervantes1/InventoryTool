@@ -102,13 +102,26 @@
 
           document.getElementById("loginPage").style.display = "none";
           document.getElementById("app").style.display = "block";
-          document.getElementById("userInfo").textContent = `${user.Name} | ${user.Role}`;
+          document.getElementById("userInfo").textContent = `${user.Name} | ${user.Team}`;
 
           // Reset admin menu every login
           document.getElementById("adminMenu").style.display = "none";
 
-          if (String(user.Role || "").toLowerCase().trim() === "admin") {
+          const role = String(user.Role || "").toLowerCase().trim();
+
+          document.getElementById("menuUsers").style.display = "none";
+
+          if (role === "team_admin") {
             document.getElementById("adminMenu").style.display = "block";
+            document.getElementById("menuAdminInventory").textContent = "Team Inventory";
+            document.getElementById("menuAdminRequests").textContent = "Team Requests";
+          }
+
+          if (role === "system_admin") {
+            document.getElementById("adminMenu").style.display = "block";
+            document.getElementById("menuUsers").style.display = "block";
+            document.getElementById("menuAdminInventory").textContent = "Inventory";
+            document.getElementById("menuAdminRequests").textContent = "Requests";
           }
 
           showMyInventory();
@@ -154,27 +167,48 @@
 
     function showAdminInventory() {
       setActiveMenu("menuAdminInventory");
-      document.getElementById("pageTitle").textContent = "Admin Inventory";
-      document.getElementById("pageSubtitle").textContent = "Inventario general de equipos.";
+
+      const role = String(currentUser.Role || "").toLowerCase().trim();
+
+      if (role === "team_admin") {
+        document.getElementById("pageTitle").textContent = "Team Inventory";
+        document.getElementById("pageSubtitle").textContent = "Inventario de tu equipo.";
+      } else {
+        document.getElementById("pageTitle").textContent = "Inventory";
+        document.getElementById("pageSubtitle").textContent = "Inventario general de equipos.";
+      }
 
       document.getElementById("content").innerHTML = `
         <div class="card">
-          <h2>Inventory</h2>
+          <h2>${role === "team_admin" ? "Team Inventory" : "Inventory"}</h2>
           <input type="text" id="searchInput" placeholder="Buscar por equipo, marca, modelo, SN, Internal SN o asignado..." oninput="filterTable()">
           <div id="tableArea" class="empty">Cargando inventario...</div>
         </div>
       `;
 
-      google.script.run
-        .withSuccessHandler(function(data) {
-          currentData = data || [];
-          renderTable(currentData);
-        })
-        .withFailureHandler(function(error) {
-          document.getElementById("tableArea").innerHTML = "Error cargando inventario: " + error.message;
-          console.error(error);
-        })
-        .getAllInventory(currentUser.Email);
+      if (role === "team_admin") {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            currentData = data || [];
+            renderTable(currentData);
+          })
+          .withFailureHandler(function(error) {
+            document.getElementById("tableArea").innerHTML = "Error cargando inventario: " + error.message;
+            console.error(error);
+          })
+          .getTeamInventory(currentUser.Email);
+      } else {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            currentData = data || [];
+            renderTable(currentData);
+          })
+          .withFailureHandler(function(error) {
+            document.getElementById("tableArea").innerHTML = "Error cargando inventario: " + error.message;
+            console.error(error);
+          })
+          .getAllInventory(currentUser.Email);
+      }
     }
 
     function showMyRequests() {
@@ -193,9 +227,57 @@
 
     function showUsers() {
       setActiveMenu("menuUsers");
+
       document.getElementById("pageTitle").textContent = "Users";
-      document.getElementById("pageSubtitle").textContent = "Usuarios registrados en la herramienta.";
-      document.getElementById("content").innerHTML = `<div class="card"><h2>Users</h2><p class="empty">Esta sección será el siguiente paso.</p></div>`;
+      document.getElementById("pageSubtitle").textContent = "Usuarios disponibles.";
+
+      document.getElementById("content").innerHTML = `
+        <div class="card">
+          <h2>Users</h2>
+          <div id="usersTable">Loading users...</div>
+        </div>
+      `;
+
+      google.script.run
+        .withSuccessHandler(function(users) {
+
+          if (!users || users.length === 0) {
+            document.getElementById("usersTable").innerHTML =
+              "<p>No users found.</p>";
+            return;
+          }
+
+          document.getElementById("usersTable").innerHTML = `
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Team</th>
+                  <th>Role</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                ${users.map(user => `
+                  <tr>
+                    <td>${user.Name}</td>
+                    <td>${user.Email}</td>
+                    <td>${user.Team}</td>
+                    <td>${user.Role}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          `;
+
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById("usersTable").innerHTML =
+            "Error loading users.";
+          console.error(error);
+        })
+        .getVisibleUsers(currentUser.Email);
     }
 
     function renderTable(data) {
