@@ -27,6 +27,11 @@
     .assigned { background: #dbeafe; color: #1e40af; }
     .empty { color: #667085; padding: 20px 0; }
     .user-info { color: #667085; font-size: 14px; }
+    .notification-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:2000; justify-content:center; align-items:center; }
+    .notification-box{ width:360px; background:#fff; border-radius:18px; padding:28px; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.18); }
+    .notification-icon{ width:72px; height:72px; border-radius:50%; background:#dcfce7; color:#15803d; font-size:42px; display:flex; align-items:center;              justify-content:center;  margin:0 auto 18px; }
+    .notification-title{ font-size:22px; font-weight:bold; margin-bottom:10px; }      
+    .notification-text{ color:#667085; }
   </style>
 </head>
 
@@ -77,8 +82,24 @@
   </div>
 
   <script>
+    let currentRequestType = null;
     let currentUser = null;
     let currentData = [];
+    const DEVICE_TYPES = [
+      "Laptop",
+      "GE Laptop",
+      "PC",
+      "Monitor",
+      "Dock",
+      "Mouse",
+      "Keyboard",
+      "Headset",
+      "Webcam",
+      "YubiKey",
+      "Lock Cable",
+      "UPS (No Break)",
+      "Other"
+    ];
 
     function loginUser() {
       const email = document.getElementById("emailInput").value.trim();
@@ -145,7 +166,16 @@
       document.getElementById("pageSubtitle").textContent = "Estos son tus equipos asignados.";
 
       document.getElementById("content").innerHTML = `
-        <button class="button">+ Report Missing Equipment</button>
+        <div class="card">
+          <h2>Actions</h2>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button class="button" onclick="openRequestForm('request_equipment')">Request Equipment</button>
+            <button class="button" onclick="openRequestForm('register_equipment')">Register Equipment</button>
+            <button class="button" onclick="openRequestForm('damaged_equipment')">Report Damaged Equipment</button>
+            <button class="button" onclick="openRequestForm('return_equipment')">Return Equipment</button>
+          </div>
+        </div>
+
         <div class="card">
           <h2>My Equipment</h2>
           <input type="text" id="searchInput" placeholder="Buscar en mi inventario..." oninput="filterTable()">
@@ -346,6 +376,158 @@
       document.getElementById("emailInput").value = "";
       document.getElementById("loginMessage").textContent = "";
     }
+
+    function openRequestForm(type) {
+      currentRequestType = type;
+      document.getElementById("requestModal").style.display = "block";
+
+      const title = document.getElementById("requestTitle");
+      const form = document.getElementById("requestForm");
+
+      const deviceOptions = DEVICE_TYPES.map(device =>
+        `<option value="${device}">${device}</option>`
+      ).join("");
+
+      if (type === "request_equipment") {
+        title.textContent = "Request Equipment";
+
+        form.innerHTML = `
+          <label>Device Type *</label>
+          <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+            ${deviceOptions}
+          </select>
+
+          <label style="display:block; margin-top:18px;">Quantity *</label>
+          <select id="requestQuantity" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+
+          <input id="requestComments" placeholder="Comments">
+        `;
+      }
+
+      if (type === "register_equipment") {
+        title.textContent = "Register Equipment";
+
+        form.innerHTML = `
+          <label>Device Type *</label>
+          <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+            ${deviceOptions}
+          </select>
+
+          <input id="requestBrand" placeholder="Brand">
+          <input id="requestModel" placeholder="Model">
+          <input id="requestSN" placeholder="Serial Number">
+          <input id="requestInternalSN" placeholder="Internal SN">
+          <input id="requestComments" placeholder="Comments">
+        `;
+      }
+
+      if (type === "damaged_equipment") {
+        title.textContent = "Report Damaged Equipment";
+
+        form.innerHTML = `
+          <label>Equipment *</label>
+          <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+            ${getMyEquipmentOptions()}
+          </select>
+
+          <input id="requestComments" placeholder="Comments">
+        `;
+      }
+
+      if (type === "return_equipment") {
+        title.textContent = "Return Equipment";
+
+        form.innerHTML = `
+          <label>Equipment *</label>
+          <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+            ${getMyEquipmentOptions()}
+          </select>
+
+          <input id="requestComments" placeholder="Comments">
+        `;
+      }
+    }
+
+    function getMyEquipmentOptions() {
+      if (!currentData || currentData.length === 0) {
+        return `<option value="">No equipment found</option>`;
+      }
+
+      return currentData.map(item => {
+        const label = `${item.Device || ""} | ${item.Brand || ""} ${item.Model || ""} | ${item["Internal SN"] || item.SN || ""}`;
+        return `<option value="${item["Internal SN"] || item.SN || item.Device}">${label}</option>`;
+      }).join("");
+    }
+
+    function submitRequest() {
+      const request = {
+        Request_type: currentRequestType,
+        Requested_by: currentUser.Email,
+        Requested_name: currentUser.Name,
+        Team: currentUser.Team,
+        Device: document.getElementById("requestDevice")?.value || "",
+        Brand: document.getElementById("requestBrand")?.value || "",
+        Model: document.getElementById("requestModel")?.value || "",
+        SN: document.getElementById("requestSN")?.value || "",
+        "Internal SN": document.getElementById("requestInternalSN")?.value || "",
+        Quantity: document.getElementById("requestQuantity")?.value || 1,
+        Comments: document.getElementById("requestComments")?.value || ""
+      };
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          closeRequestForm();
+
+          document.getElementById("successModal").style.display = "flex";
+
+          setTimeout(function() {
+            document.getElementById("successModal").style.display = "none";
+          }, 1600);
+        })
+        
+        .withFailureHandler(function(error) {
+          document.getElementById("requestForm").innerHTML = `<p style="color:#b91c1c; font-weight:bold;">Error submitting request: ${error.message}</p>`;
+          console.error(error);
+        })
+        .createRequest(request);
+    }
+
+    function closeRequestForm() {
+      document.getElementById("requestModal").style.display = "none";
+    }
   </script>
+
+  <div id="requestModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:1000;">
+    <div class="card" style="max-width:560px; margin:80px auto;">
+      <h2 id="requestTitle">Request</h2>
+
+      <div id="requestForm"></div>
+
+      <br>
+      <button class="button" id="submitRequestButton" onclick="submitRequest()">Submit</button>
+      <button class="button" id="cancelRequestButton" style="background:#667085;" onclick="closeRequestForm()">Cancel</button>
+    </div>
+  </div>
+
+  <div id="successModal" class="notification-overlay">
+    <div class="notification-box">
+
+      <div class="notification-icon">
+        ✓
+      </div>
+
+      <div class="notification-title">
+        Request Submitted
+      </div>
+
+      <div class="notification-text">
+        Your request has been sent successfully.
+      </div>
+    </div>
+  </div>
 </body>
 </html>

@@ -121,3 +121,74 @@ function getVisibleUsers(email) {
 
   return [];
 }
+
+function openRequestForm(type) {
+  document.getElementById("requestModal").style.display = "block";
+
+  document.getElementById("requestBrand").style.display = "block";
+  document.getElementById("requestModel").style.display = "block";
+  document.getElementById("requestSN").style.display = "block";
+  document.getElementById("requestInternalSN").style.display = "block";
+
+  if (type === "request_equipment") {
+    document.getElementById("requestTitle").textContent = "Request Equipment";
+    document.getElementById("requestBrand").style.display = "none";
+    document.getElementById("requestModel").style.display = "none";
+    document.getElementById("requestSN").style.display = "none";
+    document.getElementById("requestInternalSN").style.display = "none";
+  }
+
+  if (type === "register_equipment") {
+    document.getElementById("requestTitle").textContent = "Register Equipment";
+  }
+
+  if (type === "damaged_equipment") {
+    document.getElementById("requestTitle").textContent = "Report Damaged Equipment";
+    document.getElementById("requestBrand").style.display = "none";
+    document.getElementById("requestModel").style.display = "none";
+    document.getElementById("requestSN").style.display = "none";
+    document.getElementById("requestInternalSN").style.display = "none";
+  }
+
+  if (type === "return_equipment") {
+    document.getElementById("requestTitle").textContent = "Return Equipment";
+    document.getElementById("requestBrand").style.display = "none";
+    document.getElementById("requestModel").style.display = "none";
+    document.getElementById("requestSN").style.display = "none";
+    document.getElementById("requestInternalSN").style.display = "none";
+  }
+}
+
+function closeRequestForm() {
+  document.getElementById("requestModal").style.display = "none";
+}
+
+function createRequest(request) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Requests");
+
+  const requestId = "REQ-" + new Date().getTime();
+
+  sheet.appendRow([
+    requestId,
+    request.Request_type || "",
+    request.Requested_by || "",
+    request.Requested_name || "",
+    request.Team || "",
+    "pending",
+    request.Device || "",
+    request.Brand || "",
+    request.Model || "",
+    request.SN || "",
+    request["Internal SN"] || "",
+    request.Quantity || 1,
+    new Date(),
+    "",
+    "",
+    request.Comments || ""
+  ]);
+
+  return {
+    success: true,
+    request_id: requestId
+  };
+}
