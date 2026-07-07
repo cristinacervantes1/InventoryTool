@@ -244,15 +244,97 @@
     function showMyRequests() {
       setActiveMenu("menuMyRequests");
       document.getElementById("pageTitle").textContent = "My Requests";
-      document.getElementById("pageSubtitle").textContent = "Aquí aparecerán tus solicitudes.";
-      document.getElementById("content").innerHTML = `<div class="card"><h2>My Requests</h2><p class="empty">Esta sección será el siguiente paso.</p></div>`;
+      document.getElementById("pageSubtitle").textContent = "Aquí aparecen tus solicitudes.";
+
+      document.getElementById("content").innerHTML = `
+        <div class="card">
+          <h2>My Requests</h2>
+          <div id="requestsTable">Loading requests...</div>
+        </div>
+      `;
+
+      google.script.run
+        .withSuccessHandler(function(requests) {
+          renderRequestsTable(requests || [], "requestsTable", false);
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById("requestsTable").innerHTML =
+            "Error loading requests: " + error.message;
+          console.error(error);
+        })
+        .getMyRequests(currentUser.Email);
+    }
+
+    function renderRequestsTable(requests, containerId, showRequestedBy) {
+      const container = document.getElementById(containerId);
+
+      if (!requests || requests.length === 0) {
+        container.innerHTML = `<p class="empty">No requests found.</p>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Request ID</th>
+              <th>Type</th>
+              ${showRequestedBy ? "<th>Requested By</th>" : ""}
+              <th>Status</th>
+              <th>Device</th>
+              <th>Quantity</th>
+              <th>Created</th>
+              <th>Comments</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${requests.map(request => `
+              <tr>
+                <td>${request.Request_id || ""}</td>
+                <td>${request.Request_type || ""}</td>
+                ${showRequestedBy ? `<td>${request.Requested_name || ""}</td>` : ""}
+                <td><span class="badge assigned">${request.Status || ""}</span></td>
+                <td>${request.Device || ""}</td>
+                <td>${request.Quantity || ""}</td>
+                <td>${request.Created_at || ""}</td>
+                <td>${request.Comments || ""}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
     }
 
     function showAdminRequests() {
       setActiveMenu("menuAdminRequests");
-      document.getElementById("pageTitle").textContent = "Admin Requests";
-      document.getElementById("pageSubtitle").textContent = "Solicitudes pendientes de revisión.";
-      document.getElementById("content").innerHTML = `<div class="card"><h2>Requests</h2><p class="empty">Esta sección será el siguiente paso.</p></div>`;
+
+      const role = String(currentUser.Role || "").toLowerCase().trim();
+
+      document.getElementById("pageTitle").textContent =
+        role === "team_admin" ? "Team Requests" : "Requests";
+
+      document.getElementById("pageSubtitle").textContent =
+        role === "team_admin"
+          ? "Solicitudes de tu equipo."
+          : "Todas las solicitudes.";
+
+      document.getElementById("content").innerHTML = `
+        <div class="card">
+          <h2>${role === "team_admin" ? "Team Requests" : "Requests"}</h2>
+          <div id="adminRequestsTable">Loading requests...</div>
+        </div>
+      `;
+
+      google.script.run
+        .withSuccessHandler(function(requests) {
+          renderRequestsTable(requests || [], "adminRequestsTable", true);
+        })
+        .withFailureHandler(function(error) {
+          document.getElementById("adminRequestsTable").innerHTML =
+            "Error loading requests: " + error.message;
+          console.error(error);
+        })
+        .getVisibleRequests(currentUser.Email);
     }
 
     function showUsers() {
@@ -312,6 +394,7 @@
 
     function renderTable(data) {
       const tableArea = document.getElementById("tableArea");
+      if (!tableArea) return;
 
       if (!data || data.length === 0) {
         tableArea.innerHTML = `<p class="empty">No se encontraron equipos.</p>`;
@@ -488,7 +571,7 @@
             document.getElementById("successModal").style.display = "none";
           }, 1600);
         })
-        
+
         .withFailureHandler(function(error) {
           document.getElementById("requestForm").innerHTML = `<p style="color:#b91c1c; font-weight:bold;">Error submitting request: ${error.message}</p>`;
           console.error(error);
