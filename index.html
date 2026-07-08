@@ -255,7 +255,7 @@
 
       google.script.run
         .withSuccessHandler(function(requests) {
-          renderRequestsTable(requests || [], "requestsTable", false);
+          renderRequestsTable(requests || [], "requestsTable", false, false);
         })
         .withFailureHandler(function(error) {
           document.getElementById("requestsTable").innerHTML =
@@ -265,7 +265,7 @@
         .getMyRequests(currentUser.Email);
     }
 
-    function renderRequestsTable(requests, containerId, showRequestedBy) {
+    function renderRequestsTable(requests, containerId, showRequestedBy, showActions) {
       const container = document.getElementById(containerId);
 
       if (!requests || requests.length === 0) {
@@ -285,6 +285,7 @@
               <th>Quantity</th>
               <th>Created</th>
               <th>Comments</th>
+              ${showActions ? "<th>Actions</th>" : ""}
             </tr>
           </thead>
           <tbody>
@@ -298,11 +299,31 @@
                 <td>${request.Quantity || ""}</td>
                 <td>${request.Created_at || ""}</td>
                 <td>${request.Comments || ""}</td>
+                ${showActions ? `
+                  <td>
+                    ${String(request.Status || "").toLowerCase() === "pending" ? `
+                      <button class="button" onclick="reviewRequestFromUI('${request.Request_id}', 'approve')">Approve</button>
+                      <button class="button" style="background:#b91c1c;" onclick="reviewRequestFromUI('${request.Request_id}', 'reject')">Reject</button>
+                    ` : ""}
+                  </td>
+                ` : ""}
               </tr>
             `).join("")}
           </tbody>
         </table>
       `;
+    }
+
+    function reviewRequestFromUI(requestId, decision) {
+      google.script.run
+        .withSuccessHandler(function(response) {
+          showAdminRequests();
+        })
+        .withFailureHandler(function(error) {
+          alert("Error reviewing request: " + error.message);
+          console.error(error);
+        })
+        .reviewRequest(requestId, decision, currentUser.Email);
     }
 
     function showAdminRequests() {
@@ -327,7 +348,7 @@
 
       google.script.run
         .withSuccessHandler(function(requests) {
-          renderRequestsTable(requests || [], "adminRequestsTable", true);
+          renderRequestsTable(requests || [], "adminRequestsTable", true, true);
         })
         .withFailureHandler(function(error) {
           document.getElementById("adminRequestsTable").innerHTML =
@@ -541,22 +562,40 @@
       }
 
       return currentData.map(item => {
-        const label = `${item.Device || ""} | ${item.Brand || ""} ${item.Model || ""} | ${item["Internal SN"] || item.SN || ""}`;
-        return `<option value="${item["Internal SN"] || item.SN || item.Device}">${label}</option>`;
+        const device = item.Device || "";
+        const sn = item.SN || "";
+        const internalSN = item["Internal SN"] || "";
+
+        const label = `${device} | ${item.Brand || ""} ${item.Model || ""} | ${internalSN || sn || ""}`;
+        const value = `${device}||${sn}||${internalSN}`;
+
+        return `<option value="${value}">${label}</option>`;
       }).join("");
     }
 
     function submitRequest() {
+      let selectedDevice = document.getElementById("requestDevice")?.value || "";
+      let selectedSN = "";
+      let selectedInternalSN = "";
+
+      if (selectedDevice.includes("||")) {
+        const parts = selectedDevice.split("||");
+
+        selectedDevice = parts[0] || "";
+        selectedSN = parts[1] || "";
+        selectedInternalSN = parts[2] || "";
+      }
+
       const request = {
         Request_type: currentRequestType,
         Requested_by: currentUser.Email,
         Requested_name: currentUser.Name,
         Team: currentUser.Team,
-        Device: document.getElementById("requestDevice")?.value || "",
+        Device: selectedDevice,
         Brand: document.getElementById("requestBrand")?.value || "",
         Model: document.getElementById("requestModel")?.value || "",
-        SN: document.getElementById("requestSN")?.value || "",
-        "Internal SN": document.getElementById("requestInternalSN")?.value || "",
+        SN: selectedSN || document.getElementById("requestSN")?.value || "",
+        "Internal SN": selectedInternalSN || document.getElementById("requestInternalSN")?.value || "",
         Quantity: document.getElementById("requestQuantity")?.value || 1,
         Comments: document.getElementById("requestComments")?.value || ""
       };

@@ -216,3 +216,149 @@ function getVisibleRequests(email) {
 
   return [];
 }
+
+function reviewRequest(requestId, decision, reviewedByEmail) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Requests");
+  const data = sheet.getDataRange().getValues();
+
+  const status = decision === "approve" ? "approved" : "rejected";
+  const reviewedAt = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    "yyyy-MM-dd HH:mm"
+  );
+
+  for (let i = 1; i < data.length; i++) {
+    const rowRequestId = String(data[i][0] || "").trim();
+
+    if (rowRequestId === String(requestId).trim()) {
+      const requestType = String(data[i][1] || "").trim();
+
+      sheet.getRange(i + 1, 6).setValue(status);
+      sheet.getRange(i + 1, 14).setValue(reviewedByEmail);
+      sheet.getRange(i + 1, 15).setValue(reviewedAt);
+
+      if (decision === "approve") {
+        if (requestType === "return_equipment") {
+          updateAssetAssignee(data[i], "Available");
+        }
+
+        if (requestType === "damaged_equipment") {
+          updateAssetAssignee(data[i], "Damaged");
+        }
+      }
+
+      return {
+        success: true,
+        request_id: requestId,
+        status: status
+      };
+    }
+  }
+
+  throw new Error("Request not found: " + requestId);
+}
+
+function updateAssetAssignee(requestRow, newAssignee) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Assets");
+  const data = sheet.getDataRange().getValues();
+
+  const headers = data[0].map(h => String(h).trim());
+
+  const deviceCol = headers.indexOf("Device");
+  const snCol = headers.indexOf("SN");
+  const internalSnCol = headers.indexOf("Internal SN");
+  const assigneeCol = headers.indexOf("Assignee");
+
+  const rawDevice = String(requestRow[6] || "").trim();
+
+  let requestDevice = rawDevice.toLowerCase();
+  let requestSN = String(requestRow[9] || "").trim().toLowerCase();
+  let requestInternalSN = String(requestRow[10] || "").trim().toLowerCase();
+
+  if (rawDevice.includes("|")) {
+    const parts = rawDevice.split("|").map(part => part.trim());
+
+    requestDevice = String(parts[0] || "").toLowerCase();
+
+    const possibleId = String(parts[parts.length - 1] || "").toLowerCase();
+
+    if (!requestSN) requestSN = possibleId;
+    if (!requestInternalSN) requestInternalSN = possibleId;
+  }
+
+  function findMatches(matchFn) {
+    let matches = [];
+
+    Logger.log("========== REQUEST ==========");
+    Logger.log("Device: " + requestDevice);
+    Logger.log("SN: " + requestSN);
+    Logger.log("Internal SN: " + requestInternalSN);
+
+    for (let i = 1; i < data.length; i++) {
+      const assetDevice = String(data[i][deviceCol] || "").trim().toLowerCase();
+      const assetSN = String(data[i][snCol] || "").trim().toLowerCase();
+      const assetInternalSN = String(data[i][internalSnCol] || "").trim().toLowerCase();
+
+      Logger.log(
+      "Asset -> Device: " + assetDevice +
+      " | SN: " + assetSN +
+      " | Internal SN: " + assetInternalSN
+      );
+
+      if (matchFn(assetDevice, assetSN, assetInternalSN)) {
+        matches.push(i);
+      }
+    }
+
+    return matches;
+  }
+
+  let matches = [];
+
+  if (requestInternalSN && requestDevice) {
+    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
+      assetInternalSN === requestInternalSN && assetDevice === requestDevice
+    );
+  }
+
+  if (matches.length === 0 && requestSN && requestDevice) {
+    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
+      assetSN === requestSN && assetDevice === requestDevice
+    );
+  }
+
+  if (matches.length === 0 && requestInternalSN) {
+    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
+      assetInternalSN === requestInternalSN
+    );
+  }
+
+  if (matches.length === 0 && requestSN) {
+    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
+      assetSN === requestSN
+    );
+  }
+
+  if (matches.length === 0 && requestDevice) {
+    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
+      assetDevice === requestDevice
+    );
+  }
+
+  if (matches.length === 1) {
+    sheet.getRange(matches[0] + 1, assigneeCol + 1).setValue(newAssignee);
+    return;
+  }
+
+  if (matches.length > 1) {
+    throw new Error("Multiple assets found. Please make the request more specific.");
+  }
+
+  throw new Error(
+  "Asset not found. Looking for -> Device: " + requestDevice +
+  " | SN: " + requestSN +
+  " | Internal SN: " + requestInternalSN
+);
+}
