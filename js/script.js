@@ -270,6 +270,7 @@ function updateAssetAssignee(requestRow, newAssignee) {
   const snCol = headers.indexOf("SN");
   const internalSnCol = headers.indexOf("Internal SN");
   const assigneeCol = headers.indexOf("Assignee");
+  const requestOwner = String(requestRow[3] || "").trim().toLowerCase();
 
   const rawDevice = String(requestRow[6] || "").trim();
 
@@ -297,15 +298,15 @@ function updateAssetAssignee(requestRow, newAssignee) {
     Logger.log("Internal SN: " + requestInternalSN);
 
     for (let i = 1; i < data.length; i++) {
+
       const assetDevice = String(data[i][deviceCol] || "").trim().toLowerCase();
       const assetSN = String(data[i][snCol] || "").trim().toLowerCase();
       const assetInternalSN = String(data[i][internalSnCol] || "").trim().toLowerCase();
+      const assetAssignee = String(data[i][assigneeCol] || "").trim().toLowerCase();
 
-      Logger.log(
-      "Asset -> Device: " + assetDevice +
-      " | SN: " + assetSN +
-      " | Internal SN: " + assetInternalSN
-      );
+      if (assetAssignee !== requestOwner) {
+        continue;
+      }
 
       if (matchFn(assetDevice, assetSN, assetInternalSN)) {
         matches.push(i);
