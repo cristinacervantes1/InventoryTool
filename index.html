@@ -32,8 +32,38 @@
     .notification-icon{ width:72px; height:72px; border-radius:50%; background:#dcfce7; color:#15803d; font-size:42px; display:flex; align-items:center;              justify-content:center;  margin:0 auto 18px; }
     .notification-title{ font-size:22px; font-weight:bold; margin-bottom:10px; }      
     .notification-text{ color:#667085; }
+    .action-buttons{display:flex; gap:8px; }
+    .icon-btn{width:36px; height:36px; border:none; border-radius:10px; cursor:pointer; font-size:18px; font-weight:bold; transition:.2s; }
+    .icon-btn:hover{transform:scale(1.08); }
+    .btn-approve{background:#DCFCE7; color:#15803D; }
+    .btn-reject{background:#FEE2E2; color:#DC2626; }
+    .btn-assign{background:#FEF3C7; color:#D97706; }
+    .assign-overlay{display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); z-index: 2500; justify-content: center; align-items: center; }
+    .assign-box{width: 520px; max-width: calc(100% - 40px); background: white; border-radius: 18px; padding: 28px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18); }
+    .assign-header{display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .assign-title{font-size: 22px; font-weight: bold; }
+    .assign-close{border: none; background: #f1f5f9; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 18px; }
+    .assign-count{background: #fef3c7; color: #92400e; border-radius: 999px; padding: 7px 12px; display: inline-block; font-weight: bold; margin-bottom: 16px; }
+    .available-assets-list{ display: flex; flex-direction: column; gap: 10px; margin-top: 16px; max-height: 280px; overflow-y: auto; }
+    .available-asset-option{display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid #e5e7eb; border-radius: 12px; cursor: pointer; }
+    .available-asset-option:hover{background: #f8fafc; }
+    .available-asset-option input{width: auto; margin: 3px 0 0; }
   </style>
 </head>
+
+<div id="assignModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title">Assign Equipment</div>
+
+      <button class="assign-close" onclick="closeAssignModal()">
+        ✕
+      </button>
+    </div>
+
+    <div id="assignModalContent"></div>
+  </div>
+</div>
 
 <body>
   <div class="login-page" id="loginPage">
@@ -85,6 +115,10 @@
     let currentRequestType = null;
     let currentUser = null;
     let currentData = [];
+    let currentRequests = [];
+    let currentAssignRequest = null;
+    let currentAvailableAssets = [];
+
     const DEVICE_TYPES = [
       "Laptop",
       "GE Laptop",
@@ -266,6 +300,7 @@
     }
 
     function renderRequestsTable(requests, containerId, showRequestedBy, showActions) {
+      currentRequests = requests;
       const container = document.getElementById(containerId);
 
       if (!requests || requests.length === 0) {
@@ -302,8 +337,13 @@
                 ${showActions ? `
                   <td>
                     ${String(request.Status || "").toLowerCase() === "pending" ? `
-                      <button class="button" onclick="reviewRequestFromUI('${request.Request_id}', 'approve')">Approve</button>
-                      <button class="button" style="background:#b91c1c;" onclick="reviewRequestFromUI('${request.Request_id}', 'reject')">Reject</button>
+                      <div class="action-buttons">
+                      <button class="icon-btn btn-approve" title="Approve" onclick="reviewRequestFromUI('${request.Request_id}','approve')"> ✓ </button>
+                      <button class="icon-btn btn-reject" title="Reject" onclick="reviewRequestFromUI('${request.Request_id}','reject')"> ✕ </button>
+                      ${request.Request_type === "request_equipment" ? `
+                        <button class="icon-btn btn-assign" title="Assign Equipment" onclick="openAssignEquipment('${request.Request_id}')"> + </button>
+                      ` : ""}
+                    </div>
                     ` : ""}
                   </td>
                 ` : ""}
@@ -567,7 +607,10 @@
         const internalSN = item["Internal SN"] || "";
 
         const label = `${device} | ${item.Brand || ""} ${item.Model || ""} | ${internalSN || sn || ""}`;
-        const value = `${device}||${sn}||${internalSN}`;
+        const brand = item.Brand || "";
+        const model = item.Model || "";
+
+        const value = `${device}||${brand}||${model}||${sn}||${internalSN}`;
 
         return `<option value="${value}">${label}</option>`;
       }).join("");
@@ -575,6 +618,8 @@
 
     function submitRequest() {
       let selectedDevice = document.getElementById("requestDevice")?.value || "";
+      let selectedBrand = "";
+      let selectedModel = "";
       let selectedSN = "";
       let selectedInternalSN = "";
 
@@ -582,8 +627,10 @@
         const parts = selectedDevice.split("||");
 
         selectedDevice = parts[0] || "";
-        selectedSN = parts[1] || "";
-        selectedInternalSN = parts[2] || "";
+        selectedBrand = parts[1] || "";
+        selectedModel = parts[2] || "";
+        selectedSN = parts[3] || "";
+        selectedInternalSN = parts[4] || "";
       }
 
       const request = {
@@ -592,8 +639,8 @@
         Requested_name: currentUser.Name,
         Team: currentUser.Team,
         Device: selectedDevice,
-        Brand: document.getElementById("requestBrand")?.value || "",
-        Model: document.getElementById("requestModel")?.value || "",
+        Brand: selectedBrand || document.getElementById("requestBrand")?.value || "",
+        Model: selectedModel || document.getElementById("requestModel")?.value || "",
         SN: selectedSN || document.getElementById("requestSN")?.value || "",
         "Internal SN": selectedInternalSN || document.getElementById("requestInternalSN")?.value || "",
         Quantity: document.getElementById("requestQuantity")?.value || 1,
@@ -620,6 +667,141 @@
 
     function closeRequestForm() {
       document.getElementById("requestModal").style.display = "none";
+    }
+
+    function openAssignEquipment(requestId) {
+      const request = currentRequests.find(r =>
+        String(r.Request_id || "").trim() === String(requestId || "").trim()
+      );
+
+      if (!request) {
+        alert("Request not found.");
+        return;
+      }
+
+      currentAssignRequest = request;
+      const modal = document.getElementById("assignModal");
+      const content = document.getElementById("assignModalContent");
+
+      modal.style.display = "flex";
+      content.innerHTML = `<p>Loading available equipment...</p>`;
+
+      google.script.run
+        .withSuccessHandler(function(assets) {
+          const availableAssets = assets || [];
+          currentAvailableAssets = availableAssets;
+
+          if (availableAssets.length === 0) {
+            content.innerHTML = `
+              <div class="assign-count">0 available</div>
+              <p>No available ${request.Device} equipment was found.</p>
+            `;
+            return;
+          }
+          content.innerHTML = `
+            <div class="assign-count">
+              ${availableAssets.length} available
+            </div>
+
+            <p>
+              Select the equipment to assign to:
+              <strong>${request.Requested_name}</strong>
+            </p>
+
+            <div class="available-assets-list">
+              ${availableAssets.map((asset, index) => {
+                const identifier =
+                  asset["Internal SN"] ||
+                  asset.SN ||
+                  "No identifier";
+
+                return `
+                  <label class="available-asset-option">
+                    <input
+                      type="radio"
+                      name="selectedAsset"
+                      value="${index}">
+                    
+                    <div>
+                      <strong>${asset.Device || ""}</strong><br>
+                      <span>
+                        ${asset.Brand || ""} ${asset.Model || ""}
+                      </span><br>
+                      <small>${identifier}</small>
+                    </div>
+                  </label>
+                `;
+              }).join("")}
+            </div>
+
+            <button
+              class="button"
+              style="margin-top:18px;"
+              onclick="confirmAssetSelection()">
+              Assign Selected Equipment
+            </button>
+          `;
+        })
+        .withFailureHandler(function(error) {
+          content.innerHTML = `
+            <p style="color:#b91c1c;">
+              ${error.message}
+            </p>
+          `;
+        })
+        .getAvailableAssetsByDevice(request.Device);
+    }
+
+    function closeAssignModal() {
+      document.getElementById("assignModal").style.display = "none";
+    }
+
+    function confirmAssetSelection() {
+      const selected = document.querySelector(
+        'input[name="selectedAsset"]:checked'
+      );
+
+      if (!selected) {
+        alert("Select an equipment first.");
+        return;
+      }
+
+      const asset = currentAvailableAssets[Number(selected.value)];
+
+      google.script.run
+        .withSuccessHandler(function() {
+
+          google.script.run
+            .withSuccessHandler(function() {
+              closeAssignModal();
+
+              document.getElementById("successModal").style.display = "flex";
+
+              setTimeout(function() {
+                document.getElementById("successModal").style.display = "none";
+              }, 1600);
+
+              showAdminRequests();
+            })
+            .withFailureHandler(function(error) {
+              alert("Equipment was assigned, but the request could not be approved: " + error.message);
+              console.error(error);
+            })
+            .approveAssignedRequest(
+              currentAssignRequest.Request_id,
+              currentUser.Email
+            );
+
+        })
+        .withFailureHandler(function(error) {
+          alert("Error assigning equipment: " + error.message);
+          console.error(error);
+        })
+        .assignSelectedAssetToUser(
+          asset,
+          currentAssignRequest.Requested_name,
+          currentAssignRequest.Team
+        );
     }
   </script>
 

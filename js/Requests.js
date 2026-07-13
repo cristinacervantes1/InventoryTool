@@ -152,10 +152,6 @@ function reviewRequest(requestId, decision, reviewedByEmail) {
     if (rowRequestId === String(requestId).trim()) {
       const requestType = String(data[i][1] || "").trim();
 
-      sheet.getRange(i + 1, 6).setValue(status);
-      sheet.getRange(i + 1, 14).setValue(reviewedByEmail);
-      sheet.getRange(i + 1, 15).setValue(reviewedAt);
-
       if (decision === "approve") {
         if (requestType === "return_equipment") {
           updateAssetAssignee(data[i], "Available");
@@ -169,6 +165,10 @@ function reviewRequest(requestId, decision, reviewedByEmail) {
           registerEquipmentFromRequest(data[i]);
         }
       }
+      
+      sheet.getRange(i + 1, 6).setValue(status);
+      sheet.getRange(i + 1, 14).setValue(reviewedByEmail);
+      sheet.getRange(i + 1, 15).setValue(reviewedAt);
 
       return {
         success: true,
@@ -179,4 +179,50 @@ function reviewRequest(requestId, decision, reviewedByEmail) {
   }
 
   throw new Error("Request not found: " + requestId);
+}
+
+function approveAssignedRequest(requestId, reviewedByEmail) {
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Requests");
+
+  const data = sheet.getDataRange().getValues();
+
+  const reviewedAt = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    "yyyy-MM-dd HH:mm"
+  );
+
+  const matches = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const rowRequestId = String(data[i][0] || "").trim();
+
+    if (rowRequestId === String(requestId || "").trim()) {
+      matches.push(i);
+    }
+  }
+
+  if (matches.length === 0) {
+    throw new Error("Request not found: " + requestId);
+  }
+
+  if (matches.length > 1) {
+    throw new Error("Duplicate Request ID found: " + requestId);
+  }
+
+  const rowIndex = matches[0];
+
+  sheet.getRange(rowIndex + 1, 6).setValue("approved");
+  sheet.getRange(rowIndex + 1, 14).setValue(reviewedByEmail);
+  sheet.getRange(rowIndex + 1, 15).setValue(reviewedAt);
+
+  SpreadsheetApp.flush();
+
+  return {
+    success: true,
+    request_id: requestId,
+    status: "approved"
+  };
 }

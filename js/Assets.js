@@ -58,107 +58,145 @@ function getAllInventory(email) {
 }
 
 function updateAssetAssignee(requestRow, newAssignee) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Assets");
-  const data = sheet.getDataRange().getValues();
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Assets");
 
+  const data = sheet.getDataRange().getValues();
   const headers = data[0].map(h => String(h).trim());
 
   const deviceCol = headers.indexOf("Device");
+  const brandCol = headers.indexOf("Brand");
+  const modelCol = headers.indexOf("Model");
   const snCol = headers.indexOf("SN");
   const internalSnCol = headers.indexOf("Internal SN");
   const assigneeCol = headers.indexOf("Assignee");
-  const requestOwner = String(requestRow[3] || "").trim().toLowerCase();
+  const teamCol = headers.indexOf("Team");
 
-  const rawDevice = String(requestRow[6] || "").trim();
+  const requestOwner = String(requestRow[3] || "")
+    .trim()
+    .toLowerCase();
 
-  let requestDevice = rawDevice.toLowerCase();
-  let requestSN = String(requestRow[9] || "").trim().toLowerCase();
-  let requestInternalSN = String(requestRow[10] || "").trim().toLowerCase();
+  const requestDevice = String(requestRow[6] || "")
+    .trim()
+    .toLowerCase();
 
-  if (rawDevice.includes("|")) {
-    const parts = rawDevice.split("|").map(part => part.trim());
+  const requestBrand = String(requestRow[7] || "")
+    .trim()
+    .toLowerCase();
 
-    requestDevice = String(parts[0] || "").toLowerCase();
+  const requestModel = String(requestRow[8] || "")
+    .trim()
+    .toLowerCase();
 
-    const possibleId = String(parts[parts.length - 1] || "").toLowerCase();
+  const requestSN = String(requestRow[9] || "")
+    .trim()
+    .toLowerCase();
 
-    if (!requestSN) requestSN = possibleId;
-    if (!requestInternalSN) requestInternalSN = possibleId;
-  }
+  const requestInternalSN = String(requestRow[10] || "")
+    .trim()
+    .toLowerCase();
 
-  function findMatches(matchFn) {
-    let matches = [];
+  const ownerAssets = [];
 
-    Logger.log("========== REQUEST ==========");
-    Logger.log("Device: " + requestDevice);
-    Logger.log("SN: " + requestSN);
-    Logger.log("Internal SN: " + requestInternalSN);
+  for (let i = 1; i < data.length; i++) {
+    const assetAssignee = String(data[i][assigneeCol] || "")
+      .trim()
+      .toLowerCase();
 
-    for (let i = 1; i < data.length; i++) {
-
-      const assetDevice = String(data[i][deviceCol] || "").trim().toLowerCase();
-      const assetSN = String(data[i][snCol] || "").trim().toLowerCase();
-      const assetInternalSN = String(data[i][internalSnCol] || "").trim().toLowerCase();
-      const assetAssignee = String(data[i][assigneeCol] || "").trim().toLowerCase();
-
-      if (assetAssignee !== requestOwner) {
-        continue;
-      }
-
-      if (matchFn(assetDevice, assetSN, assetInternalSN)) {
-        matches.push(i);
-      }
+    if (assetAssignee !== requestOwner) {
+      continue;
     }
 
-    return matches;
+    ownerAssets.push({
+      rowIndex: i,
+      device: String(data[i][deviceCol] || "").trim().toLowerCase(),
+      brand: String(data[i][brandCol] || "").trim().toLowerCase(),
+      model: String(data[i][modelCol] || "").trim().toLowerCase(),
+      sn: String(data[i][snCol] || "").trim().toLowerCase(),
+      internalSN: String(data[i][internalSnCol] || "").trim().toLowerCase()
+    });
   }
 
   let matches = [];
 
-  if (requestInternalSN && requestDevice) {
-    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
-      assetInternalSN === requestInternalSN && assetDevice === requestDevice
+  // 1. Internal SN + Device
+  if (requestInternalSN) {
+    matches = ownerAssets.filter(asset =>
+      asset.internalSN === requestInternalSN &&
+      asset.device === requestDevice
     );
   }
 
-  if (matches.length === 0 && requestSN && requestDevice) {
-    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
-      assetSN === requestSN && assetDevice === requestDevice
-    );
-  }
-
-  if (matches.length === 0 && requestInternalSN) {
-    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
-      assetInternalSN === requestInternalSN
-    );
-  }
-
+  // 2. SN + Device
   if (matches.length === 0 && requestSN) {
-    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
-      assetSN === requestSN
+    matches = ownerAssets.filter(asset =>
+      asset.sn === requestSN &&
+      asset.device === requestDevice
     );
   }
 
-  if (matches.length === 0 && requestDevice) {
-    matches = findMatches((assetDevice, assetSN, assetInternalSN) =>
-      assetDevice === requestDevice
+  // 3. Device + Brand + Model
+  if (
+    matches.length === 0 &&
+    requestDevice &&
+    (requestBrand || requestModel)
+  ) {
+    matches = ownerAssets.filter(asset =>
+      asset.device === requestDevice &&
+      asset.brand === requestBrand &&
+      asset.model === requestModel
+    );
+  }
+
+  // 4. Device solamente, como último recurso
+  if (
+    matches.length === 0 &&
+    requestDevice &&
+    !requestBrand &&
+    !requestModel &&
+    !requestSN &&
+    !requestInternalSN
+  ) {
+    matches = ownerAssets.filter(asset =>
+      asset.device === requestDevice
     );
   }
 
   if (matches.length === 1) {
-    sheet.getRange(matches[0] + 1, assigneeCol + 1).setValue(newAssignee);
+    const rowNumber = matches[0].rowIndex + 1;
+
+    sheet
+      .getRange(rowNumber, assigneeCol + 1)
+      .setValue(newAssignee);
+
+    if (String(newAssignee).trim().toLowerCase() === "available") {
+      sheet
+        .getRange(rowNumber, teamCol + 1)
+        .setValue("");
+    }
+
+    SpreadsheetApp.flush();
     return;
   }
 
   if (matches.length > 1) {
-    throw new Error("Multiple assets found. Please make the request more specific.");
+    throw new Error(
+      "Multiple matching assets found for " +
+      requestOwner +
+      ". Device: " + requestDevice +
+      " | Brand: " + requestBrand +
+      " | Model: " + requestModel
+    );
   }
 
   throw new Error(
-  "Asset not found. Looking for -> Device: " + requestDevice +
-  " | SN: " + requestSN +
-  " | Internal SN: " + requestInternalSN
-);
+    "Asset not found. Device: " + requestDevice +
+    " | Brand: " + requestBrand +
+    " | Model: " + requestModel +
+    " | SN: " + requestSN +
+    " | Internal SN: " + requestInternalSN
+  );
 }
 
 function registerEquipmentFromRequest(requestRow) {
@@ -241,4 +279,94 @@ function registerEquipmentFromRequest(requestRow) {
   sheet.appendRow(newRow);
   SpreadsheetApp.flush();
   return;
+}
+
+function getAvailableAssetsByDevice(device) {
+  const assets = getAssets();
+
+  const requestedDevice = String(device || "").trim().toLowerCase();
+
+  return assets.filter(asset =>
+    String(asset.Device || "").trim().toLowerCase() === requestedDevice &&
+    String(asset.Assignee || "").trim().toLowerCase() === "available"
+  );
+}
+
+function assignSelectedAssetToUser(assetData, requestedName, requestedTeam) {
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Assets");
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).trim());
+
+  const deviceCol = headers.indexOf("Device");
+  const brandCol = headers.indexOf("Brand");
+  const modelCol = headers.indexOf("Model");
+  const snCol = headers.indexOf("SN");
+  const teamCol = headers.indexOf("Team");
+  const internalSnCol = headers.indexOf("Internal SN");
+  const assigneeCol = headers.indexOf("Assignee");
+
+  const device = String(assetData.Device || "").trim().toLowerCase();
+  const brand = String(assetData.Brand || "").trim().toLowerCase();
+  const model = String(assetData.Model || "").trim().toLowerCase();
+  const sn = String(assetData.SN || "").trim().toLowerCase();
+  const internalSN = String(
+    assetData["Internal SN"] || ""
+  ).trim().toLowerCase();
+
+  const matches = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const assetDevice = String(data[i][deviceCol] || "").trim().toLowerCase();
+    const assetBrand = String(data[i][brandCol] || "").trim().toLowerCase();
+    const assetModel = String(data[i][modelCol] || "").trim().toLowerCase();
+    const assetSN = String(data[i][snCol] || "").trim().toLowerCase();
+    const assetInternalSN = String(
+      data[i][internalSnCol] || ""
+    ).trim().toLowerCase();
+    const assetAssignee = String(
+      data[i][assigneeCol] || ""
+    ).trim().toLowerCase();
+
+    if (assetAssignee !== "available") {
+      continue;
+    }
+
+    const sameAsset =
+      assetDevice === device &&
+      assetBrand === brand &&
+      assetModel === model &&
+      assetSN === sn &&
+      assetInternalSN === internalSN;
+
+    if (sameAsset) {
+      matches.push(i);
+    }
+  }
+
+  if (matches.length === 0) {
+    throw new Error("The selected asset is no longer available.");
+  }
+
+  if (matches.length > 1) {
+    throw new Error("Multiple identical available assets were found.");
+  }
+
+  const rowNumber = matches[0] + 1;
+
+  sheet
+    .getRange(rowNumber, assigneeCol + 1)
+    .setValue(requestedName);
+
+  sheet
+    .getRange(rowNumber, teamCol + 1)
+    .setValue(requestedTeam);
+
+  SpreadsheetApp.flush();
+
+  return {
+    success: true
+  };
 }
