@@ -51,20 +51,6 @@
   </style>
 </head>
 
-<div id="assignModal" class="assign-overlay">
-  <div class="assign-box">
-    <div class="assign-header">
-      <div class="assign-title">Assign Equipment</div>
-
-      <button class="assign-close" onclick="closeAssignModal()">
-        ✕
-      </button>
-    </div>
-
-    <div id="assignModalContent"></div>
-  </div>
-</div>
-
 <body>
   <div class="login-page" id="loginPage">
     <h1>Inventory Tool</h1>
@@ -338,12 +324,33 @@
                   <td>
                     ${String(request.Status || "").toLowerCase() === "pending" ? `
                       <div class="action-buttons">
-                      <button class="icon-btn btn-approve" title="Approve" onclick="reviewRequestFromUI('${request.Request_id}','approve')"> ✓ </button>
-                      <button class="icon-btn btn-reject" title="Reject" onclick="reviewRequestFromUI('${request.Request_id}','reject')"> ✕ </button>
-                      ${request.Request_type === "request_equipment" ? `
-                        <button class="icon-btn btn-assign" title="Assign Equipment" onclick="openAssignEquipment('${request.Request_id}')"> + </button>
-                      ` : ""}
-                    </div>
+
+                        ${request.Request_type !== "request_equipment" ? `
+                          <button
+                            class="icon-btn btn-approve"
+                            title="Approve"
+                            onclick="reviewRequestFromUI('${request.Request_id}','approve')">
+                            ✓
+                          </button>
+                        ` : ""}
+
+                        ${request.Request_type === "request_equipment" ? `
+                          <button
+                            class="icon-btn btn-assign"
+                            title="Assign Equipment"
+                            onclick="openAssignEquipment('${request.Request_id}')">
+                            +
+                          </button>
+                        ` : ""}
+
+                        <button
+                          class="icon-btn btn-reject"
+                          title="Reject"
+                          onclick="reviewRequestFromUI('${request.Request_id}','reject')">
+                          ✕
+                        </button>
+                                                
+                      </div>
                     ` : ""}
                   </td>
                 ` : ""}
@@ -356,7 +363,7 @@
 
     function reviewRequestFromUI(requestId, decision) {
       google.script.run
-        .withSuccessHandler(function(response) {
+        .withSuccessHandler(function() {
           showAdminRequests();
         })
         .withFailureHandler(function(error) {
@@ -648,7 +655,7 @@
       };
 
       google.script.run
-        .withSuccessHandler(function(response) {
+        .withSuccessHandler(function() {
           closeRequestForm();
 
           document.getElementById("successModal").style.display = "flex";
@@ -804,6 +811,20 @@
         );
     }
   </script>
+
+  <div id="assignModal" class="assign-overlay">
+    <div class="assign-box">
+      <div class="assign-header">
+        <div class="assign-title">Assign Equipment</div>
+
+        <button class="assign-close" onclick="closeAssignModal()">
+          ✕
+        </button>
+      </div>
+
+      <div id="assignModalContent"></div>
+    </div>
+  </div>
 
   <div id="requestModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:1000;">
     <div class="card" style="max-width:560px; margin:80px auto;">

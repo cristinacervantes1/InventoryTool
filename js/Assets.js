@@ -170,7 +170,14 @@ function updateAssetAssignee(requestRow, newAssignee) {
       .getRange(rowNumber, assigneeCol + 1)
       .setValue(newAssignee);
 
-    if (String(newAssignee).trim().toLowerCase() === "available") {
+    const normalizedNewAssignee = String(newAssignee || "")
+      .trim()
+      .toLowerCase();
+
+    if (
+      normalizedNewAssignee === "available" ||
+      normalizedNewAssignee === "damaged"
+    ) {
       sheet
         .getRange(rowNumber, teamCol + 1)
         .setValue("");
