@@ -705,13 +705,31 @@
             `;
             return;
           }
+          const quantityNeeded = Number(request.Quantity || 1);
+
+          if (availableAssets.length < quantityNeeded) {
+            content.innerHTML = `
+              <div class="assign-count">
+                ${availableAssets.length} available
+              </div>
+
+              <p style="color:#b91c1c; font-weight:bold;">
+                This request needs ${quantityNeeded} equipment(s), but only
+                ${availableAssets.length} are available.
+              </p>
+            `;
+            return;
+          }
+
           content.innerHTML = `
             <div class="assign-count">
               ${availableAssets.length} available
             </div>
 
             <p>
-              Select the equipment to assign to:
+              Select exactly
+              <strong>${quantityNeeded}</strong>
+              equipment(s) to assign to:
               <strong>${request.Requested_name}</strong>
             </p>
 
@@ -725,10 +743,10 @@
                 return `
                   <label class="available-asset-option">
                     <input
-                      type="radio"
-                      name="selectedAsset"
+                      type="checkbox"
+                      class="selected-asset-checkbox"
                       value="${index}">
-                    
+
                     <div>
                       <strong>${asset.Device || ""}</strong><br>
                       <span>
@@ -741,11 +759,9 @@
               }).join("")}
             </div>
 
-            <button
-              class="button"
-              style="margin-top:18px;"
+            <button class="button" style="margin-top:18px;"
               onclick="confirmAssetSelection()">
-              Assign Selected Equipment
+              Assign ${quantityNeeded} Equipment
             </button>
           `;
         })
@@ -764,50 +780,101 @@
     }
 
     function confirmAssetSelection() {
-      const selected = document.querySelector(
-        'input[name="selectedAsset"]:checked'
+      const quantityNeeded = Number(
+        currentAssignRequest.Quantity || 1
       );
 
-      if (!selected) {
-        alert("Select an equipment first.");
+      const selectedInputs = Array.from(
+        document.querySelectorAll(
+          ".selected-asset-checkbox:checked"
+        )
+      );
+
+      if (selectedInputs.length !== quantityNeeded) {
+        alert(
+          "Please select exactly " +
+          quantityNeeded +
+          " equipment(s)."
+        );
         return;
       }
 
-      const asset = currentAvailableAssets[Number(selected.value)];
+      const selectedAssets = selectedInputs.map(input =>
+        currentAvailableAssets[Number(input.value)]
+      );
+
+      const content = document.getElementById(
+        "assignModalContent"
+      );
+
+      content.innerHTML = `
+        <p>Assigning ${selectedAssets.length} equipment(s)...</p>
+      `;
+
+      assignAssetsOneByOne(selectedAssets, 0);
+    }
+
+    function assignAssetsOneByOne(selectedAssets, currentIndex) {
+      if (currentIndex >= selectedAssets.length) {
+        approveRequestAfterAssignment();
+        return;
+      }
+
+      const asset = selectedAssets[currentIndex];
 
       google.script.run
         .withSuccessHandler(function() {
-
-          google.script.run
-            .withSuccessHandler(function() {
-              closeAssignModal();
-
-              document.getElementById("successModal").style.display = "flex";
-
-              setTimeout(function() {
-                document.getElementById("successModal").style.display = "none";
-              }, 1600);
-
-              showAdminRequests();
-            })
-            .withFailureHandler(function(error) {
-              alert("Equipment was assigned, but the request could not be approved: " + error.message);
-              console.error(error);
-            })
-            .approveAssignedRequest(
-              currentAssignRequest.Request_id,
-              currentUser.Email
-            );
-
+          assignAssetsOneByOne(
+            selectedAssets,
+            currentIndex + 1
+          );
         })
         .withFailureHandler(function(error) {
-          alert("Error assigning equipment: " + error.message);
+          alert(
+            "Error assigning equipment " +
+            (currentIndex + 1) +
+            ": " +
+            error.message
+          );
+
           console.error(error);
         })
         .assignSelectedAssetToUser(
           asset,
           currentAssignRequest.Requested_name,
           currentAssignRequest.Team
+        );
+    }
+
+    function approveRequestAfterAssignment() {
+      google.script.run
+        .withSuccessHandler(function() {
+          closeAssignModal();
+
+          document.getElementById(
+            "successModal"
+          ).style.display = "flex";
+
+          setTimeout(function() {
+            document.getElementById(
+              "successModal"
+            ).style.display = "none";
+          }, 1600);
+
+          showAdminRequests();
+        })
+        .withFailureHandler(function(error) {
+          alert(
+            "The equipment was assigned, but the request " +
+            "could not be approved: " +
+            error.message
+          );
+
+          console.error(error);
+        })
+        .approveAssignedRequest(
+          currentAssignRequest.Request_id,
+          currentUser.Email
         );
     }
   </script>
