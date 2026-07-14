@@ -48,6 +48,11 @@
     .available-asset-option{display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid #e5e7eb; border-radius: 12px; cursor: pointer; }
     .available-asset-option:hover{background: #f8fafc; }
     .available-asset-option input{width: auto; margin: 3px 0 0; }
+    .request-tabs{display: flex; gap: 10px; margin-bottom: 22px; border-bottom: 1px solid #e5e7eb; }
+    .request-tab{background: transparent; color: #667085; border: none; border-bottom: 3px solid transparent; padding: 12px 16px; font-size: 15px; font-weight: bold;  cursor: pointer; }
+    .request-tab:hover{color: #2563eb; }
+    .request-tab.active{color: #2563eb; border-bottom-color: #2563eb; }
+    .btn-view{background: #dbeafe; color: #2563eb; }
   </style>
 </head>
 
@@ -102,6 +107,7 @@
     let currentUser = null;
     let currentData = [];
     let currentRequests = [];
+    let currentRequestView = "active";
     let currentAssignRequest = null;
     let currentAvailableAssets = [];
 
@@ -286,7 +292,6 @@
     }
 
     function renderRequestsTable(requests, containerId, showRequestedBy, showActions) {
-      currentRequests = requests;
       const container = document.getElementById(containerId);
 
       if (!requests || requests.length === 0) {
@@ -324,6 +329,15 @@
                   <td>
                     ${String(request.Status || "").toLowerCase() === "pending" ? `
                       <div class="action-buttons">
+
+                        ${request.Request_type === "register_equipment" ? `
+                          <button
+                            class="icon-btn btn-view"
+                            title="View Details"
+                            onclick="openRequestDetails('${request.Request_id}')">
+                            👁
+                          </button>
+                        ` : ""}
 
                         ${request.Request_type !== "request_equipment" ? `
                           <button
@@ -376,10 +390,14 @@
     function showAdminRequests() {
       setActiveMenu("menuAdminRequests");
 
-      const role = String(currentUser.Role || "").toLowerCase().trim();
+      const role = String(currentUser.Role || "")
+        .toLowerCase()
+        .trim();
 
       document.getElementById("pageTitle").textContent =
-        role === "team_admin" ? "Team Requests" : "Requests";
+        role === "team_admin"
+          ? "Team Requests"
+          : "Requests";
 
       document.getElementById("pageSubtitle").textContent =
         role === "team_admin"
@@ -388,18 +406,38 @@
 
       document.getElementById("content").innerHTML = `
         <div class="card">
-          <h2>${role === "team_admin" ? "Team Requests" : "Requests"}</h2>
-          <div id="adminRequestsTable">Loading requests...</div>
+          <div class="request-tabs">
+            <button
+              id="activeRequestsTab"
+              class="request-tab active"
+              onclick="showActiveRequests()">
+              Active Requests
+            </button>
+
+            <button
+              id="requestHistoryTab"
+              class="request-tab"
+              onclick="showRequestHistory()">
+              Request History
+            </button>
+          </div>
+
+          <div id="adminRequestsTable">
+            Loading requests...
+          </div>
         </div>
       `;
 
       google.script.run
         .withSuccessHandler(function(requests) {
-          renderRequestsTable(requests || [], "adminRequestsTable", true, true);
+          currentRequests = requests || [];
+          currentRequestView = "active";
+          renderAdminRequestsView();
         })
         .withFailureHandler(function(error) {
           document.getElementById("adminRequestsTable").innerHTML =
             "Error loading requests: " + error.message;
+
           console.error(error);
         })
         .getVisibleRequests(currentUser.Email);
@@ -458,6 +496,52 @@
           console.error(error);
         })
         .getVisibleUsers(currentUser.Email);
+    }
+
+    function showActiveRequests() {
+      currentRequestView = "active";
+      renderAdminRequestsView();
+    }
+
+    function showRequestHistory() {
+      currentRequestView = "history";
+      renderAdminRequestsView();
+    }
+
+    function renderAdminRequestsView() {
+      const activeTab = document.getElementById("activeRequestsTab");
+      const historyTab = document.getElementById("requestHistoryTab");
+
+      if (activeTab && historyTab) {
+        activeTab.classList.toggle(
+          "active",
+          currentRequestView === "active"
+        );
+
+        historyTab.classList.toggle(
+          "active",
+          currentRequestView === "history"
+        );
+      }
+
+      const filteredRequests = currentRequests.filter(request => {
+        const status = String(request.Status || "")
+          .trim()
+          .toLowerCase();
+
+        if (currentRequestView === "active") {
+          return status === "pending";
+        }
+
+        return status === "approved" || status === "rejected";
+      });
+
+      renderRequestsTable(
+        filteredRequests,
+        "adminRequestsTable",
+        true,
+        currentRequestView === "active"
+      );
     }
 
     function renderTable(data) {
@@ -877,6 +961,76 @@
           currentUser.Email
         );
     }
+
+    function openRequestDetails(requestId) {
+      const request = currentRequests.find(item =>
+        String(item.Request_id || "").trim() ===
+        String(requestId || "").trim()
+      );
+
+      if (!request) {
+        alert("Request not found.");
+        return;
+      }
+
+      const modal = document.getElementById("requestDetailsModal");
+      const content = document.getElementById("requestDetailsContent");
+
+      content.innerHTML = `
+        <div style="display:grid; grid-template-columns:140px 1fr; gap:12px 18px;">
+          <strong>Request ID</strong>
+          <span>${request.Request_id || ""}</span>
+
+          <strong>Type</strong>
+          <span>${request.Request_type || ""}</span>
+
+          <strong>Requested By</strong>
+          <span>${request.Requested_name || ""}</span>
+
+          <strong>Team</strong>
+          <span>${request.Team || ""}</span>
+
+          <strong>Status</strong>
+          <span>${request.Status || ""}</span>
+
+          <strong>Device</strong>
+          <span>${request.Device || ""}</span>
+
+          <strong>Brand</strong>
+          <span>${request.Brand || ""}</span>
+
+          <strong>Model</strong>
+          <span>${request.Model || ""}</span>
+
+          <strong>SN</strong>
+          <span>${request.SN || ""}</span>
+
+          <strong>Internal SN</strong>
+          <span>${request["Internal SN"] || ""}</span>
+
+          <strong>Quantity</strong>
+          <span>${request.Quantity || ""}</span>
+
+          <strong>Created</strong>
+          <span>${request.Created_at || ""}</span>
+
+          <strong>Reviewed By</strong>
+          <span>${request.Reviewed_by || ""}</span>
+
+          <strong>Reviewed At</strong>
+          <span>${request.Reviewed_at || ""}</span>
+
+          <strong>Comments</strong>
+          <span>${request.Comments || ""}</span>
+        </div>
+      `;
+
+      modal.style.display = "flex";
+    }
+
+    function closeRequestDetails() {
+      document.getElementById("requestDetailsModal").style.display = "none";
+    }
   </script>
 
   <div id="assignModal" class="assign-overlay">
@@ -890,6 +1044,22 @@
       </div>
 
       <div id="assignModalContent"></div>
+    </div>
+  </div>
+
+  <div id="requestDetailsModal" class="assign-overlay">
+    <div class="assign-box">
+      <div class="assign-header">
+        <div class="assign-title">Request Details</div>
+
+        <button
+          class="assign-close"
+          onclick="closeRequestDetails()">
+          ✕
+        </button>
+      </div>
+
+      <div id="requestDetailsContent"></div>
     </div>
   </div>
 
