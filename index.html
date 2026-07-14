@@ -110,6 +110,7 @@
     let currentRequestView = "active";
     let currentAssignRequest = null;
     let currentAvailableAssets = [];
+    const appCache = {myInventory: null, adminInventory: null, myRequests: null, adminRequests: null, users: null};
 
     const DEVICE_TYPES = [
       "Laptop",
@@ -209,13 +210,22 @@
         </div>
       `;
 
+      if (appCache.myInventory !== null) {
+        currentData = appCache.myInventory;
+        renderTable(currentData);
+        return;
+      }
+
       google.script.run
         .withSuccessHandler(function(data) {
-          currentData = data || [];
+          appCache.myInventory = data || [];
+          currentData = appCache.myInventory;
           renderTable(currentData);
         })
         .withFailureHandler(function(error) {
-          document.getElementById("tableArea").innerHTML = "Error cargando inventario: " + error.message;
+          document.getElementById("tableArea").innerHTML =
+            "Error cargando inventario: " + error.message;
+
           console.error(error);
         })
         .getMyInventory(currentUser.Email);
@@ -237,32 +247,43 @@
       document.getElementById("content").innerHTML = `
         <div class="card">
           <h2>${role === "team_admin" ? "Team Inventory" : "Inventory"}</h2>
-          <input type="text" id="searchInput" placeholder="Buscar por equipo, marca, modelo, SN, Internal SN o asignado..." oninput="filterTable()">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Buscar por equipo, marca, modelo, SN, Internal SN o asignado..."
+            oninput="filterTable()">
           <div id="tableArea" class="empty">Cargando inventario...</div>
         </div>
       `;
 
+      if (appCache.adminInventory !== null) {
+        currentData = appCache.adminInventory;
+        renderTable(currentData);
+        return;
+      }
+
+      const successHandler = function(data) {
+        appCache.adminInventory = data || [];
+        currentData = appCache.adminInventory;
+        renderTable(currentData);
+      };
+
+      const failureHandler = function(error) {
+        document.getElementById("tableArea").innerHTML =
+          "Error cargando inventario: " + error.message;
+
+        console.error(error);
+      };
+
       if (role === "team_admin") {
         google.script.run
-          .withSuccessHandler(function(data) {
-            currentData = data || [];
-            renderTable(currentData);
-          })
-          .withFailureHandler(function(error) {
-            document.getElementById("tableArea").innerHTML = "Error cargando inventario: " + error.message;
-            console.error(error);
-          })
+          .withSuccessHandler(successHandler)
+          .withFailureHandler(failureHandler)
           .getTeamInventory(currentUser.Email);
       } else {
         google.script.run
-          .withSuccessHandler(function(data) {
-            currentData = data || [];
-            renderTable(currentData);
-          })
-          .withFailureHandler(function(error) {
-            document.getElementById("tableArea").innerHTML = "Error cargando inventario: " + error.message;
-            console.error(error);
-          })
+          .withSuccessHandler(successHandler)
+          .withFailureHandler(failureHandler)
           .getAllInventory(currentUser.Email);
       }
     }
@@ -279,13 +300,31 @@
         </div>
       `;
 
+      if (appCache.myRequests !== null) {
+        renderRequestsTable(
+          appCache.myRequests,
+          "requestsTable",
+          false,
+          false
+        );
+        return;
+      }
+
       google.script.run
         .withSuccessHandler(function(requests) {
-          renderRequestsTable(requests || [], "requestsTable", false, false);
+          appCache.myRequests = requests || [];
+
+          renderRequestsTable(
+            appCache.myRequests,
+            "requestsTable",
+            false,
+            false
+          );
         })
         .withFailureHandler(function(error) {
           document.getElementById("requestsTable").innerHTML =
             "Error loading requests: " + error.message;
+
           console.error(error);
         })
         .getMyRequests(currentUser.Email);
@@ -428,17 +467,31 @@
         </div>
       `;
 
+      if (appCache.adminRequests !== null) {
+        currentRequests = appCache.adminRequests;
+        currentRequestView = "active";
+        renderAdminRequestsView();
+        return;
+      }
+
       google.script.run
         .withSuccessHandler(function(requests) {
-          currentRequests = requests || [];
+
+          appCache.adminRequests = requests || [];
+
+          currentRequests = appCache.adminRequests;
           currentRequestView = "active";
+
           renderAdminRequestsView();
+
         })
         .withFailureHandler(function(error) {
+
           document.getElementById("adminRequestsTable").innerHTML =
             "Error loading requests: " + error.message;
 
           console.error(error);
+
         })
         .getVisibleRequests(currentUser.Email);
     }
@@ -456,46 +509,56 @@
         </div>
       `;
 
+      if (appCache.users !== null) {
+        renderUsersTable(appCache.users);
+        return;
+      }
+
       google.script.run
         .withSuccessHandler(function(users) {
-
-          if (!users || users.length === 0) {
-            document.getElementById("usersTable").innerHTML =
-              "<p>No users found.</p>";
-            return;
-          }
-
-          document.getElementById("usersTable").innerHTML = `
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Team</th>
-                  <th>Role</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                ${users.map(user => `
-                  <tr>
-                    <td>${user.Name}</td>
-                    <td>${user.Email}</td>
-                    <td>${user.Team}</td>
-                    <td>${user.Role}</td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-          `;
-
+          appCache.users = users || [];
+          renderUsersTable(appCache.users);
         })
         .withFailureHandler(function(error) {
           document.getElementById("usersTable").innerHTML =
             "Error loading users.";
+
           console.error(error);
         })
         .getVisibleUsers(currentUser.Email);
+    }
+
+    function renderUsersTable(users) {
+      const container = document.getElementById("usersTable");
+
+      if (!users || users.length === 0) {
+        container.innerHTML = "<p>No users found.</p>";
+        return;
+      }
+
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Team</th>
+              <th>Role</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${users.map(user => `
+              <tr>
+                <td>${user.Name || ""}</td>
+                <td>${user.Email || ""}</td>
+                <td>${user.Team || ""}</td>
+                <td>${user.Role || ""}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
     }
 
     function showActiveRequests() {
