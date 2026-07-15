@@ -112,6 +112,10 @@
     let currentAvailableAssets = [];
     const appCache = {myInventory: null, adminInventory: null, myRequests: null, adminRequests: null, users: null};
 
+    function clearCache() {
+      Object.keys(appCache).forEach(key => {appCache[key] = null; });
+    }
+
     const DEVICE_TYPES = [
       "Laptop",
       "GE Laptop",
@@ -417,6 +421,7 @@
     function reviewRequestFromUI(requestId, decision) {
       google.script.run
         .withSuccessHandler(function() {
+          clearCache();
           showAdminRequests();
         })
         .withFailureHandler(function(error) {
@@ -666,8 +671,14 @@
     }
 
     function logout() {
+      clearCache();
+
       currentUser = null;
       currentData = [];
+      currentRequests = [];
+      currentAssignRequest = null;
+      currentAvailableAssets = [];
+
       document.getElementById("adminMenu").style.display = "none";
       document.getElementById("app").style.display = "none";
       document.getElementById("loginPage").style.display = "block";
@@ -804,7 +815,7 @@
       google.script.run
         .withSuccessHandler(function() {
           closeRequestForm();
-
+          clearCache();
           document.getElementById("successModal").style.display = "flex";
 
           setTimeout(function() {
@@ -996,6 +1007,7 @@
     function approveRequestAfterAssignment() {
       google.script.run
         .withSuccessHandler(function() {
+          clearCache();
           closeAssignModal();
 
           document.getElementById(
