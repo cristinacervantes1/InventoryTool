@@ -53,6 +53,31 @@
     .request-tab:hover{color: #2563eb; }
     .request-tab.active{color: #2563eb; border-bottom-color: #2563eb; }
     .btn-view{background: #dbeafe; color: #2563eb; }
+    .inventory-summary{display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-top: 18px; }
+    .summary-card{background: #ffffff; border: 1px solid #e8ecf2; border-radius: 16px; padding: 18px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04); }
+    .summary-device{font-size: 14px; color: #667085; margin-bottom: 8px; }
+    .summary-total{font-size: 30px; font-weight: 700; color: #172033; line-height: 1; }
+    .summary-available{font-size: 13px; color: #15803d; margin-top: 8px; }
+    .team-members-grid{display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 18px; margin-top: 20px; }
+    .team-member-card{background: #ffffff; border: 1px solid #e7ebf2; border-radius: 18px; padding: 20px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05); }
+    .team-member-header{display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid #eef1f5; }
+    .team-member-avatar{width: 48px; height: 48px; border-radius: 50%; background: #dbeafe; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; flex-shrink: 0; }
+    .team-member-name{font-size: 17px; font-weight: 700; color: #172033; }
+    .team-member-email{margin-top: 3px; color: #667085; font-size: 13px; }
+    .team-member-stats{display: flex; gap: 10px; margin-top: 16px; }
+    .team-stat{flex: 1; background: #f8fafc; border-radius: 12px; padding: 12px; }
+    .team-stat-number{font-size: 22px; font-weight: 700; color: #172033; }
+    .team-stat-label{margin-top: 3px; color: #667085; font-size: 12px; }
+    .team-card-section{margin-top: 18px; }
+    .team-card-section-title{margin-bottom: 10px; font-size: 13px; font-weight: 700; color: #344054; text-transform: uppercase; letter-spacing: 0.04em; }
+    .team-item-list{display: flex; flex-direction: column; gap: 8px; }
+    .team-list-item{background: #f8fafc; border: 1px solid #eef1f5; border-radius: 10px; padding: 10px 12px; }
+    .team-item-title{font-size: 14px; font-weight: 600; color: #172033; }
+    .team-item-meta{margin-top: 3px; font-size: 12px; color: #667085; }
+    .team-empty-text{color: #98a2b3; font-size: 13px; }
+    .team-member-actions{display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    .team-action-button{background: #f1f5f9; color: #2563eb; border: 1px solid #dbe3ef; border-radius: 10px; padding: 11px 12px; font-size: 13px; font-weight: 600;cursor: pointer; }
+    .team-action-button:hover{background: #e8f0ff; }
   </style>
 </head>
 
@@ -80,7 +105,7 @@
 
       <div id="adminMenu" style="display:none;">
         <div class="menu-title">Admin</div>
-        <div class="menu-item" id="menuAdminInventory" onclick="showAdminInventory()">Inventory</div>
+        <div class="menu-item" id="menuAdminInventory" onclick="openAdminInventory()">Inventory</div>
         <div class="menu-item" id="menuAdminRequests" onclick="showAdminRequests()">Requests</div>
         <div class="menu-item" id="menuUsers" onclick="showUsers()">Users</div>
       </div>
@@ -167,6 +192,9 @@
             document.getElementById("adminMenu").style.display = "block";
             document.getElementById("menuAdminInventory").textContent = "Team Inventory";
             document.getElementById("menuAdminRequests").textContent = "Team Requests";
+
+            document.getElementById("menuAdminInventory").onclick = showTeamInventory;
+            document.getElementById("menuAdminRequests").onclick = showAdminRequests;
           }
 
           if (role === "system_admin") {
@@ -174,6 +202,9 @@
             document.getElementById("menuUsers").style.display = "block";
             document.getElementById("menuAdminInventory").textContent = "Inventory";
             document.getElementById("menuAdminRequests").textContent = "Requests";
+
+            document.getElementById("menuAdminInventory").onclick = showAdminInventory;
+            document.getElementById("menuAdminRequests").onclick = showAdminRequests;
           }
 
           showMyInventory();
@@ -250,6 +281,11 @@
 
       document.getElementById("content").innerHTML = `
         <div class="card">
+          <h2>${role === "team_admin" ? "Team Inventory Overview" : "Inventory Overview"}</h2>
+          <div id="inventorySummary"></div>
+        </div>
+
+        <div class="card">
           <h2>${role === "team_admin" ? "Team Inventory" : "Inventory"}</h2>
           <input
             type="text"
@@ -262,6 +298,7 @@
 
       if (appCache.adminInventory !== null) {
         currentData = appCache.adminInventory;
+        renderInventorySummary(currentData);
         renderTable(currentData);
         return;
       }
@@ -269,6 +306,8 @@
       const successHandler = function(data) {
         appCache.adminInventory = data || [];
         currentData = appCache.adminInventory;
+
+        renderInventorySummary(currentData);
         renderTable(currentData);
       };
 
@@ -290,6 +329,292 @@
           .withFailureHandler(failureHandler)
           .getAllInventory(currentUser.Email);
       }
+    }
+
+    function openAdminInventory() {
+      const role = String(currentUser.Role || "").trim().toLowerCase();
+
+      if (role === "team_admin") {
+        showTeamInventory();
+      } else {
+        showAdminInventory();
+      }
+
+    }
+
+    function showTeamInventory() {
+      setActiveMenu("menuAdminInventory");
+      showTeamManagerOverview();
+    }
+
+    function showTeamManagerOverview() {
+      document.getElementById("pageTitle").textContent = "Team Overview";
+      document.getElementById("pageSubtitle").textContent =
+        "Equipos y solicitudes activas de tu equipo.";
+
+      document.getElementById("content").innerHTML = `
+        <div class="card">
+          <h2>Team Members</h2>
+          <p>Consulta el equipo asignado y las solicitudes activas de cada integrante.</p>
+
+          <div id="teamMembersArea" class="empty">
+            Loading team information...
+          </div>
+        </div>
+      `;
+
+      loadTeamUsers(function(users) {
+        loadTeamInventoryData(function(inventory) {
+          loadTeamRequestsData(function(requests) {
+            renderTeamMemberCards(
+              users || [],
+              inventory || [],
+              requests || []
+            );
+          });
+        });
+      });
+    }
+
+    function loadTeamUsers(callback) {
+      if (appCache.users !== null) {
+        callback(appCache.users);
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(users) {
+          appCache.users = users || [];
+          callback(appCache.users);
+        })
+        .withFailureHandler(function(error) {
+          showTeamOverviewError(error);
+        })
+        .getVisibleUsers(currentUser.Email);
+    }
+
+    function loadTeamInventoryData(callback) {
+      if (appCache.adminInventory !== null) {
+        callback(appCache.adminInventory);
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(inventory) {
+          appCache.adminInventory = inventory || [];
+          callback(appCache.adminInventory);
+        })
+        .withFailureHandler(function(error) {
+          showTeamOverviewError(error);
+        })
+        .getTeamInventory(currentUser.Email);
+    }
+
+    function loadTeamRequestsData(callback) {
+      if (appCache.adminRequests !== null) {
+        callback(appCache.adminRequests);
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(requests) {
+          appCache.adminRequests = requests || [];
+          callback(appCache.adminRequests);
+        })
+        .withFailureHandler(function(error) {
+          showTeamOverviewError(error);
+        })
+        .getVisibleRequests(currentUser.Email);
+    }
+
+    function showTeamOverviewError(error) {
+      const container = document.getElementById("teamMembersArea");
+
+      if (container) {
+        container.innerHTML =
+          "Error loading team information: " + error.message;
+      }
+
+      console.error(error);
+    }
+
+    function renderTeamMemberCards(users, inventory, requests) {
+      const container = document.getElementById("teamMembersArea");
+
+      if (!container) {
+        return;
+      }
+
+      if (!users || users.length === 0) {
+        container.innerHTML = `
+          <p class="empty">No team members found.</p>
+        `;
+        return;
+      }
+
+      const cards = users.map(user => {
+        const userName = String(user.Name || "").trim();
+        const normalizedUserName = userName.toLowerCase();
+
+        const userAssets = inventory.filter(asset =>
+          String(asset.Assignee || "")
+            .trim()
+            .toLowerCase() === normalizedUserName
+        );
+
+        const userRequests = requests.filter(request =>
+          String(request.Requested_name || "")
+            .trim()
+            .toLowerCase() === normalizedUserName
+        );
+
+        const pendingRequests = userRequests.filter(request =>
+          String(request.Status || "")
+            .trim()
+            .toLowerCase() === "pending"
+        );
+
+        const initials = getUserInitials(userName);
+        
+        return `
+          <div class="team-member-card">
+            <div class="team-member-header">
+              <div class="team-member-avatar">
+                ${initials}
+              </div>
+
+              <div>
+                <div class="team-member-name">
+                  ${userName || "Unnamed User"}
+                </div>
+
+                <div class="team-member-email">
+                  ${user.Email || ""}
+                </div>
+              </div>
+            </div>
+
+            <div class="team-member-stats">
+              <div class="team-stat">
+                <div class="team-stat-number">
+                  ${userAssets.length}
+                </div>
+
+                <div class="team-stat-label">
+                  Assigned equipment
+                </div>
+              </div>
+
+              <div class="team-stat">
+                <div class="team-stat-number">
+                  ${pendingRequests.length}
+                </div>
+
+                <div class="team-stat-label">
+                  Active requests
+                </div>
+              </div>
+            </div>
+
+            <div class="team-member-actions">
+              <button
+                class="team-action-button"
+                onclick="openTeamEquipment('${user.Email}')">
+                View Equipment
+              </button>
+
+              <button
+                class="team-action-button"
+                onclick="openTeamRequests('${user.Email}')">
+                View Active Requests
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      container.className = "team-members-grid";
+      container.innerHTML = cards;
+    }
+
+    function getUserInitials(name) {
+      const parts = String(name || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+      if (parts.length === 0) {
+        return "?";
+      }
+
+      if (parts.length === 1) {
+        return parts[0].charAt(0).toUpperCase();
+      }
+
+      return (
+        parts[0].charAt(0) +
+        parts[parts.length - 1].charAt(0)
+      ).toUpperCase();
+    }
+
+    function formatRequestType(requestType) {
+      return String(requestType || "")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, letter => letter.toUpperCase());
+    }
+    
+    function renderInventorySummary(data) {
+      const container = document.getElementById("inventorySummary");
+
+      if (!container) {
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        container.innerHTML = `
+          <p class="empty">No inventory data available.</p>
+        `;
+        return;
+      }
+
+      const summary = {};
+
+      data.forEach(asset => {
+        const device = String(asset.Device || "Other").trim() || "Other";
+        const assignee = String(asset.Assignee || "").trim().toLowerCase();
+
+        if (!summary[device]) {
+          summary[device] = {
+            total: 0,
+            available: 0
+          };
+        }
+
+        summary[device].total += 1;
+
+        if (assignee === "available") {
+          summary[device].available += 1;
+        }
+      });
+
+      const cards = Object.entries(summary)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([device, counts]) => `
+          <div class="summary-card">
+            <div class="summary-device">${device}</div>
+            <div class="summary-total">${counts.total}</div>
+            <div class="summary-available">
+              ${counts.available} available
+            </div>
+          </div>
+        `)
+        .join("");
+
+      container.innerHTML = `
+        <div class="inventory-summary">
+          ${cards}
+        </div>
+      `;
     }
 
     function showMyRequests() {
