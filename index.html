@@ -133,6 +133,7 @@
     let currentData = [];
     let currentRequests = [];
     let currentRequestView = "active";
+    let currentMyRequestView = "active";
     let currentAssignRequest = null;
     let currentAvailableAssets = [];
     const appCache = {myInventory: null, adminInventory: null, myRequests: null, adminRequests: null, users: null};
@@ -349,13 +350,10 @@
 
     function showTeamManagerOverview() {
       document.getElementById("pageTitle").textContent = "Team Overview";
-      document.getElementById("pageSubtitle").textContent =
-        "Equipos y solicitudes activas de tu equipo.";
 
       document.getElementById("content").innerHTML = `
         <div class="card">
           <h2>Team Members</h2>
-          <p>Consulta el equipo asignado y las solicitudes activas de cada integrante.</p>
 
           <div id="teamMembersArea" class="empty">
             Loading team information...
@@ -520,13 +518,13 @@
               <button
                 class="team-action-button"
                 onclick="openTeamEquipment('${user.Email}')">
-                View Equipment
+                💻 Equipment
               </button>
 
               <button
                 class="team-action-button"
                 onclick="openTeamRequests('${user.Email}')">
-                View Active Requests
+                📝 Requests
               </button>
             </div>
           </div>
@@ -535,6 +533,207 @@
 
       container.className = "team-members-grid";
       container.innerHTML = cards;
+    }
+
+    function openTeamEquipment(userEmail) {
+      const users = appCache.users || [];
+      const inventory = appCache.adminInventory || [];
+
+      const selectedUser = users.find(user =>
+        String(user.Email || "")
+          .trim()
+          .toLowerCase() ===
+        String(userEmail || "")
+          .trim()
+          .toLowerCase()
+      );
+
+      if (!selectedUser) {
+        alert("User not found.");
+        return;
+      }
+
+      const userName = String(selectedUser.Name || "")
+        .trim()
+        .toLowerCase();
+
+      const userAssets = inventory.filter(asset =>
+        String(asset.Assignee || "")
+          .trim()
+          .toLowerCase() === userName
+      );
+
+      const modal = document.getElementById("teamEquipmentModal");
+      const title = document.getElementById("teamEquipmentTitle");
+      const content = document.getElementById("teamEquipmentContent");
+
+      title.textContent =
+        `${selectedUser.Name || "User"} — Assigned Equipment`;
+
+      if (userAssets.length === 0) {
+        content.innerHTML = `
+          <p class="empty">No assigned equipment found.</p>
+        `;
+
+        modal.style.display = "flex";
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="assign-count">
+          ${userAssets.length} assigned
+        </div>
+
+        <div class="available-assets-list">
+          ${userAssets.map(asset => {
+            const description = [
+              asset.Brand || "",
+              asset.Model || ""
+            ]
+              .filter(Boolean)
+              .join(" ");
+
+            const serialNumber =
+              asset.SN || "No serial number";
+
+            const internalSN =
+              asset["Internal SN"] || "No internal SN";
+
+            return `
+              <div class="available-asset-option">
+                <div>
+                  <strong>${asset.Device || "Equipment"}</strong>
+
+                  <div class="team-item-meta">
+                    ${description || "No brand or model"}
+                  </div>
+
+                  <div class="team-item-meta">
+                    SN: ${serialNumber}
+                  </div>
+
+                  <div class="team-item-meta">
+                    Internal SN: ${internalSN}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+
+      modal.style.display = "flex";
+    }
+
+    function closeTeamEquipment() {
+      document.getElementById("teamEquipmentModal").style.display = "none";
+    }
+
+    function openTeamRequests(userEmail) {
+      const users = appCache.users || [];
+      const requests = appCache.adminRequests || [];
+
+      const normalizedEmail = String(userEmail || "")
+        .trim()
+        .toLowerCase();
+
+      const selectedUser = users.find(user =>
+        String(user.Email || "")
+          .trim()
+          .toLowerCase() === normalizedEmail
+      );
+
+      if (!selectedUser) {
+        alert("User not found.");
+        return;
+      }
+
+      const userName = String(selectedUser.Name || "")
+        .trim()
+        .toLowerCase();
+
+      const pendingRequests = requests.filter(request =>
+        String(request.Requested_name || "")
+          .trim()
+          .toLowerCase() === userName &&
+        String(request.Status || "")
+          .trim()
+          .toLowerCase() === "pending"
+      );
+
+      const modal = document.getElementById("teamRequestsModal");
+      const title = document.getElementById("teamRequestsTitle");
+      const content = document.getElementById("teamRequestsContent");
+
+      title.textContent =
+        `${selectedUser.Name || "User"} — Active Requests`;
+
+      if (pendingRequests.length === 0) {
+        content.innerHTML = `
+          <p class="empty">No active requests found.</p>
+        `;
+
+        modal.style.display = "flex";
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="assign-count">
+          ${pendingRequests.length} active
+        </div>
+
+        <div class="available-assets-list">
+          ${pendingRequests.map(request => {
+            const requestType = formatRequestType(
+              request.Request_type
+            );
+
+            return `
+              <div class="available-asset-option">
+                <div style="width:100%;">
+                  <div style="display:flex; justify-content:space-between; gap:12px;">
+                    <strong>
+                      ${requestType || "Request"}
+                    </strong>
+
+                    <span class="badge assigned">
+                      ${request.Status || "Pending"}
+                    </span>
+                  </div>
+
+                  <div class="team-item-meta">
+                    Request ID: ${request.Request_id || ""}
+                  </div>
+
+                  <div class="team-item-meta">
+                    Device: ${request.Device || "Not specified"}
+                  </div>
+
+                  <div class="team-item-meta">
+                    Quantity: ${request.Quantity || 1}
+                  </div>
+
+                  ${
+                    request.Comments
+                      ? `
+                        <div class="team-item-meta">
+                          Comments: ${request.Comments}
+                        </div>
+                      `
+                      : ""
+                  }
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+
+      modal.style.display = "flex";
+    }
+
+    function closeTeamRequests() {
+      document.getElementById("teamRequestsModal").style.display = "none";
     }
 
     function getUserInitials(name) {
@@ -619,36 +818,46 @@
 
     function showMyRequests() {
       setActiveMenu("menuMyRequests");
+
       document.getElementById("pageTitle").textContent = "My Requests";
-      document.getElementById("pageSubtitle").textContent = "Aquí aparecen tus solicitudes.";
+      document.getElementById("pageSubtitle").textContent =
+        "Aquí aparecen tus solicitudes.";
 
       document.getElementById("content").innerHTML = `
         <div class="card">
-          <h2>My Requests</h2>
-          <div id="requestsTable">Loading requests...</div>
+          <div class="request-tabs">
+            <button
+              id="myActiveRequestsTab"
+              class="request-tab active"
+              onclick="showMyActiveRequests()">
+              Active Requests
+            </button>
+
+            <button
+              id="myRequestHistoryTab"
+              class="request-tab"
+              onclick="showMyRequestHistory()">
+              Request History
+            </button>
+          </div>
+
+          <div id="requestsTable">
+            Loading requests...
+          </div>
         </div>
       `;
 
+      currentMyRequestView = "active";
+
       if (appCache.myRequests !== null) {
-        renderRequestsTable(
-          appCache.myRequests,
-          "requestsTable",
-          false,
-          false
-        );
+        renderMyRequestsView();
         return;
       }
 
       google.script.run
         .withSuccessHandler(function(requests) {
           appCache.myRequests = requests || [];
-
-          renderRequestsTable(
-            appCache.myRequests,
-            "requestsTable",
-            false,
-            false
-          );
+          renderMyRequestsView();
         })
         .withFailureHandler(function(error) {
           document.getElementById("requestsTable").innerHTML =
@@ -657,6 +866,54 @@
           console.error(error);
         })
         .getMyRequests(currentUser.Email);
+    }
+
+    function showMyActiveRequests() {
+      currentMyRequestView = "active";
+      renderMyRequestsView();
+    }
+
+    function showMyRequestHistory() {
+      currentMyRequestView = "history";
+      renderMyRequestsView();
+    }
+
+    function renderMyRequestsView() {
+      const requests = appCache.myRequests || [];
+
+      const activeTab = document.getElementById("myActiveRequestsTab");
+      const historyTab = document.getElementById("myRequestHistoryTab");
+
+      if (activeTab && historyTab) {
+        activeTab.classList.toggle(
+          "active",
+          currentMyRequestView === "active"
+        );
+
+        historyTab.classList.toggle(
+          "active",
+          currentMyRequestView === "history"
+        );
+      }
+
+      const filteredRequests = requests.filter(request => {
+        const status = String(request.Status || "")
+          .trim()
+          .toLowerCase();
+
+        if (currentMyRequestView === "active") {
+          return status === "pending";
+        }
+
+        return status === "approved" || status === "rejected";
+      });
+
+      renderRequestsTable(
+        filteredRequests,
+        "requestsTable",
+        false,
+        false
+      );
     }
 
     function renderRequestsTable(requests, containerId, showRequestedBy, showActions) {
@@ -1444,6 +1701,42 @@
       </div>
 
       <div id="assignModalContent"></div>
+    </div>
+  </div>
+
+  <div id="teamEquipmentModal" class="assign-overlay">
+    <div class="assign-box">
+      <div class="assign-header">
+        <div class="assign-title" id="teamEquipmentTitle">
+          Assigned Equipment
+        </div>
+
+        <button
+          class="assign-close"
+          onclick="closeTeamEquipment()">
+          ✕
+        </button>
+      </div>
+
+      <div id="teamEquipmentContent"></div>
+    </div>
+  </div>
+
+  <div id="teamRequestsModal" class="assign-overlay">
+    <div class="assign-box">
+      <div class="assign-header">
+        <div class="assign-title" id="teamRequestsTitle">
+          Active Requests
+        </div>
+
+        <button
+          class="assign-close"
+          onclick="closeTeamRequests()">
+          ✕
+        </button>
+      </div>
+
+      <div id="teamRequestsContent"></div>
     </div>
   </div>
 
