@@ -78,6 +78,17 @@
     .team-member-actions{display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
     .team-action-button{background: #f1f5f9; color: #2563eb; border: 1px solid #dbe3ef; border-radius: 10px; padding: 11px 12px; font-size: 13px; font-weight: 600;cursor: pointer; }
     .team-action-button:hover{background: #e8f0ff; }
+    .inventory-main-stats{display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 16px; margin-top: 18px; }
+    .inventory-main-stat{background: #f8fafc; border: 1px solid #e7ebf2; border-radius: 16px; padding: 20px; }
+    .inventory-main-number{font-size: 34px; font-weight: 700; color: #172033; }
+    .inventory-main-label{margin-top: 6px; font-size: 13px; font-weight: 600; color: #667085; }
+    .inventory-device-grid{display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-top: 22px; }
+    .device-summary-card{background: #ffffff; border: 1px solid #e7ebf2; border-radius: 16px; padding: 18px; text-align: left; cursor: pointer; transition: all .2s ease;}
+    .device-summary-card:hover{transform: translateY(-2px); border-color: #2563eb; box-shadow: 0 8px 18px rgba(37, 99, 235, .10); }
+    .device-summary-name{display: flex; align-items: center; gap: 8px; color: #475467; font-size: 14px; font-weight: 600; }
+    .device-summary-total{margin-top: 14px; font-size: 30px; font-weight: 700; color: #172033; }
+    .device-summary-label{margin-top: 2px; font-size: 12px; color: #98a2b3; }
+    .device-summary-available{margin-top: 10px; font-size: 13px; font-weight: 600; color: #15803d; }
   </style>
 </head>
 
@@ -778,9 +789,27 @@
 
       const summary = {};
 
+      let totalAssets = 0;
+      let totalAvailable = 0;
+      let totalDamaged = 0;
+
       data.forEach(asset => {
-        const device = String(asset.Device || "Other").trim() || "Other";
-        const assignee = String(asset.Assignee || "").trim().toLowerCase();
+        const device =
+          String(asset.Device || "Other").trim() || "Other";
+
+        const assignee = String(asset.Assignee || "")
+          .trim()
+          .toLowerCase();
+
+        totalAssets += 1;
+
+        if (assignee === "available") {
+          totalAvailable += 1;
+        }
+
+        if (assignee === "damaged") {
+          totalDamaged += 1;
+        }
 
         if (!summary[device]) {
           summary[device] = {
@@ -796,24 +825,122 @@
         }
       });
 
-      const cards = Object.entries(summary)
+      const deviceCards = Object.entries(summary)
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([device, counts]) => `
-          <div class="summary-card">
-            <div class="summary-device">${device}</div>
-            <div class="summary-total">${counts.total}</div>
-            <div class="summary-available">
+          <button
+            class="device-summary-card"
+            onclick="filterInventoryByDevice('${device.replace(/'/g, "\\'")}')">
+
+            <div class="device-summary-name">
+              ${getDeviceIcon(device)}
+              <span>${device}</span>
+            </div>
+
+            <div class="device-summary-total">
+              ${counts.total}
+            </div>
+
+            <div class="device-summary-label">
+              Total
+            </div>
+
+            <div class="device-summary-available">
               ${counts.available} available
             </div>
-          </div>
+          </button>
         `)
         .join("");
 
       container.innerHTML = `
-        <div class="inventory-summary">
-          ${cards}
+        <div class="inventory-main-stats">
+          <div class="inventory-main-stat">
+            <div class="inventory-main-number">
+              ${totalAssets}
+            </div>
+
+            <div class="inventory-main-label">
+              Total Assets
+            </div>
+          </div>
+
+          <div class="inventory-main-stat">
+            <div class="inventory-main-number">
+              ${totalAvailable}
+            </div>
+
+            <div class="inventory-main-label">
+              Available
+            </div>
+          </div>
+
+          <div class="inventory-main-stat">
+            <div class="inventory-main-number">
+              ${totalDamaged}
+            </div>
+
+            <div class="inventory-main-label">
+              Damaged
+            </div>
+          </div>
+        </div>
+
+        <div class="inventory-device-grid">
+          ${deviceCards}
         </div>
       `;
+    }
+
+    function getDeviceIcon(device) {
+      const normalizedDevice = String(device || "")
+        .trim()
+        .toLowerCase();
+
+      const icons = {
+        "laptop": "💻",
+        "ge laptop": "💻",
+        "pc": "🖥️",
+        "monitor": "🖥️",
+        "dock": "🔌",
+        "mouse": "🖱️",
+        "keyboard": "⌨️",
+        "headset": "🎧",
+        "webcam": "📷",
+        "yubikey": "🔑",
+        "lock cable": "🔒",
+        "ups (no break)": "🔋"
+      };
+
+      return icons[normalizedDevice] || "⚙️";
+    }
+
+    function filterInventoryByDevice(device) {
+      const normalizedDevice = String(device || "")
+        .trim()
+        .toLowerCase();
+
+      const filteredData = currentData.filter(asset => {
+        const assetDevice = String(asset.Device || "")
+          .trim()
+          .toLowerCase();
+
+        const assignee = String(asset.Assignee || "")
+          .trim()
+          .toLowerCase();
+
+        return (
+          assetDevice === normalizedDevice &&
+          assignee === "available"
+        );
+      });
+
+      const searchInput = document.getElementById("searchInput");
+
+      if (searchInput) {
+        searchInput.value = device + " — Available";
+      }
+
+      renderTable(filteredData);
     }
 
     function showMyRequests() {
