@@ -82,13 +82,16 @@
     .inventory-main-stat{background: #f8fafc; border: 1px solid #e7ebf2; border-radius: 16px; padding: 20px; }
     .inventory-main-number{font-size: 34px; font-weight: 700; color: #172033; }
     .inventory-main-label{margin-top: 6px; font-size: 13px; font-weight: 600; color: #667085; }
-    .inventory-device-grid{display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-top: 22px; }
-    .device-summary-card{background: #ffffff; border: 1px solid #e7ebf2; border-radius: 16px; padding: 18px; text-align: left; cursor: pointer; transition: all .2s ease;}
-    .device-summary-card:hover{transform: translateY(-2px); border-color: #2563eb; box-shadow: 0 8px 18px rgba(37, 99, 235, .10); }
-    .device-summary-name{display: flex; align-items: center; gap: 8px; color: #475467; font-size: 14px; font-weight: 600; }
-    .device-summary-total{margin-top: 14px; font-size: 30px; font-weight: 700; color: #172033; }
-    .device-summary-label{margin-top: 2px; font-size: 12px; color: #98a2b3; }
-    .device-summary-available{margin-top: 10px; font-size: 13px; font-weight: 600; color: #15803d; }
+    .inventory-device-grid{display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 10px; margin-top: 18px; }
+    .device-summary-card{background: #ffffff; border: 1px solid #e7ebf2; border-radius: 14px; padding: 13px 14px; min-height: 108px; text-align: left; cursor: pointer;transition: all .2s ease; }
+    .device-summary-name{display: flex; align-items: center; gap: 6px; color: #475467; font-size: 13px; font-weight: 600; line-height: 1.2; }
+    .device-summary-total{margin-top: 10px; font-size: 25px; font-weight: 700; line-height: 1; color: #172033; }
+    .device-summary-label{display: inline; margin-left: 4px; font-size: 11px; color: #98a2b3; }
+    .device-summary-available{margin-top: 7px; font-size: 12px; font-weight: 600; color: #15803d; }
+    .assign-user-button{width:38px; height:38px; border:none; border-radius:10px; background:#eef4ff; color:#2563eb; font-size:18px; font-weight:700; cursor:pointer;transition:.2s; }
+    .assign-user-button:hover{background:#2563eb; color:white; transform:scale(1.08); }
+    .assign-user-row{padding:12px; margin-top:8px; border:1px solid #E4E7EC; border-radius:10px; cursor:pointer; transition:.2s; }
+    .assign-user-row:hover{background:#EEF4FF; border-color:#2563EB; }
   </style>
 </head>
 
@@ -142,11 +145,16 @@
     let currentRequestType = null;
     let currentUser = null;
     let currentData = [];
+    let availableUsers = [];
     let currentRequests = [];
     let currentRequestView = "active";
     let currentMyRequestView = "active";
     let currentAssignRequest = null;
     let currentAvailableAssets = [];
+    let inventoryAssignmentMode = false;
+    let currentDirectAssignAsset = null;
+    let selectedDirectAssignUser = null;
+    
     const appCache = {myInventory: null, adminInventory: null, myRequests: null, adminRequests: null, users: null};
 
     function clearCache() {
@@ -297,21 +305,22 @@
           <div id="inventorySummary"></div>
         </div>
 
-        <div class="card">
-          <h2>${role === "team_admin" ? "Team Inventory" : "Inventory"}</h2>
+        <div class="card" id="inventoryTableCard" style="display:none;">
+          <h2 id="inventoryTableTitle">Available Equipment</h2>
+
           <input
             type="text"
             id="searchInput"
-            placeholder="Buscar por equipo, marca, modelo, SN, Internal SN o asignado..."
+            placeholder="Search available equipment..."
             oninput="filterTable()">
-          <div id="tableArea" class="empty">Cargando inventario...</div>
+
+          <div id="tableArea"></div>
         </div>
       `;
 
       if (appCache.adminInventory !== null) {
         currentData = appCache.adminInventory;
         renderInventorySummary(currentData);
-        renderTable(currentData);
         return;
       }
 
@@ -320,7 +329,6 @@
         currentData = appCache.adminInventory;
 
         renderInventorySummary(currentData);
-        renderTable(currentData);
       };
 
       const failureHandler = function(error) {
@@ -839,10 +847,7 @@
 
             <div class="device-summary-total">
               ${counts.total}
-            </div>
-
-            <div class="device-summary-label">
-              Total
+              <span class="device-summary-label">Total</span>
             </div>
 
             <div class="device-summary-available">
@@ -919,7 +924,9 @@
         .trim()
         .toLowerCase();
 
-      const filteredData = currentData.filter(asset => {
+      const fullInventory = appCache.adminInventory || [];
+
+      const filteredData = fullInventory.filter(asset => {
         const assetDevice = String(asset.Device || "")
           .trim()
           .toLowerCase();
@@ -934,13 +941,36 @@
         );
       });
 
+      // La búsqueda posterior también se limita a estos disponibles.
+      currentData = filteredData;
+
+      const tableCard = document.getElementById("inventoryTableCard");
+      const tableTitle = document.getElementById("inventoryTableTitle");
       const searchInput = document.getElementById("searchInput");
 
-      if (searchInput) {
-        searchInput.value = device + " — Available";
+      if (tableCard) {
+        tableCard.style.display = "block";
       }
 
+      if (tableTitle) {
+        tableTitle.textContent = `${device} — Available`;
+      }
+
+      if (searchInput) {
+        searchInput.value = "";
+        searchInput.placeholder = `Search available ${device}...`;
+      }
+
+      inventoryAssignmentMode = true;
+
       renderTable(filteredData);
+
+      if (tableCard) {
+        tableCard.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }
     }
 
     function showMyRequests() {
@@ -1342,6 +1372,7 @@
               <th>Internal SN</th>
               <th>Assignee</th>
               <th>Labeled</th>
+              ${inventoryAssignmentMode ? '<th style="width:70px;">Assign</th>' : ""}
             </tr>
           </thead>
           <tbody>
@@ -1358,12 +1389,197 @@
                   <td>${item["Internal SN"] || ""}</td>
                   <td><span class="badge ${badgeClass}">${assignee}</span></td>
                   <td>${item.Labeled || ""}</td>
+                  ${inventoryAssignmentMode ? `
+                    <td>
+                      <button
+                        class="assign-user-button"
+                        title="Assign Equipment"
+                        onclick='openDirectAssignModal(${JSON.stringify(item)})'>
+                        👤⁺
+                      </button>
+                    </td>
+                  ` : ""}
                 </tr>
               `;
             }).join("")}
           </tbody>
         </table>
       `;
+    }
+
+    function openDirectAssignModal(asset) {
+      currentDirectAssignAsset = asset;
+
+      const modal = document.getElementById("directAssignModal");
+      const content = document.getElementById("directAssignContent");
+
+      if (!modal || !content) {
+        console.error("Direct assignment modal was not found.");
+        return;
+      }
+
+      const identifier =
+        asset["Internal SN"] ||
+        asset.SN ||
+        "No identifier";
+
+      content.innerHTML = `
+        <div class="available-asset-option">
+          <div>
+            <strong>${asset.Device || "Equipment"}</strong>
+
+            <div class="team-item-meta">
+              ${asset.Brand || ""} ${asset.Model || ""}
+            </div>
+
+            <div class="team-item-meta">
+              SN: ${asset.SN || "No serial number"}
+            </div>
+
+            <div class="team-item-meta">
+              Internal SN: ${asset["Internal SN"] || "No internal SN"}
+            </div>
+
+            <div class="team-item-meta">
+              Identifier: ${identifier}
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <label style="font-weight:600;">
+            Assign to
+          </label>
+
+          <select
+            id="assignUserSelect"
+            onchange="selectAssignUserFromDropdown()"
+            style="
+              width:100%;
+              padding:12px;
+              margin-top:12px;
+              border:1px solid #d0d5dd;
+              border-radius:10px;
+              font-size:14px;
+              background:white;
+            ">
+            <option value="">Select a user...</option>
+          </select>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px;">
+          <button
+            class="button"
+            style="background:#667085;"
+            onclick="closeDirectAssignModal()">
+            Cancel
+          </button>
+
+          <button
+            id="directAssignButton"
+            class="button"
+            disabled
+            onclick="confirmDirectAssignment()"
+            style="opacity:.5; cursor:not-allowed;">
+            Assign
+          </button>
+        </div>
+      `;
+      google.script.run
+        .withSuccessHandler(function(users) {
+          availableUsers = users || [];
+          renderAssignUserDropdown();
+        })
+        .getVisibleUsers(currentUser.Email);
+      modal.style.display = "flex";
+    }
+
+    function closeDirectAssignModal() {
+      document.getElementById("directAssignModal").style.display = "none";
+
+      currentDirectAssignAsset = null;
+      selectedDirectAssignUser = null;
+    }
+
+    function renderAssignUserDropdown() {
+      const select = document.getElementById("assignUserSelect");
+
+      if (!select) {
+        return;
+      }
+
+      select.innerHTML = `
+        <option value="">Select a user...</option>
+        ${availableUsers.map(user => `
+          <option value="${user.Email}">
+            ${user.Name} — ${user.Team || "No team"}
+          </option>
+        `).join("")}
+      `;
+    }
+
+    function selectAssignUserFromDropdown() {
+      const select = document.getElementById("assignUserSelect");
+      const assignButton = document.getElementById("directAssignButton");
+
+      selectedDirectAssignUser = availableUsers.find(user =>
+        String(user.Email || "") === String(select?.value || "")
+      ) || null;
+
+      if (assignButton) {
+        assignButton.disabled = !selectedDirectAssignUser;
+        assignButton.style.opacity = selectedDirectAssignUser ? "1" : ".5";
+        assignButton.style.cursor = selectedDirectAssignUser
+          ? "pointer"
+          : "not-allowed";
+      }
+    }
+
+    function confirmDirectAssignment() {
+      if (!currentDirectAssignAsset || !selectedDirectAssignUser) {
+        alert("Please select an asset and a user.");
+        return;
+      }
+
+      const assignButton = document.getElementById("directAssignButton");
+
+      if (assignButton) {
+        assignButton.disabled = true;
+        assignButton.textContent = "Assigning...";
+        assignButton.style.opacity = ".5";
+        assignButton.style.cursor = "not-allowed";
+      }
+
+      google.script.run
+        .withSuccessHandler(function() {
+          closeDirectAssignModal();
+          clearCache();
+
+          document.getElementById("successModal").style.display = "flex";
+
+          setTimeout(function() {
+            document.getElementById("successModal").style.display = "none";
+          }, 1600);
+
+          showAdminInventory();
+        })
+        .withFailureHandler(function(error) {
+          alert("Error assigning equipment: " + error.message);
+
+          if (assignButton) {
+            assignButton.disabled = false;
+            assignButton.textContent = "Assign";
+            assignButton.style.opacity = "1";
+            assignButton.style.cursor = "pointer";
+          }
+
+          console.error(error);
+        })
+        .assignSelectedAssetToUser(
+          currentDirectAssignAsset,
+          selectedDirectAssignUser.Name,
+          selectedDirectAssignUser.Team
+        );
     }
 
     function filterTable() {
@@ -1816,6 +2032,24 @@
       document.getElementById("requestDetailsModal").style.display = "none";
     }
   </script>
+
+  <div id="directAssignModal" class="assign-overlay">
+    <div class="assign-box">
+      <div class="assign-header">
+        <div class="assign-title">
+          Assign Equipment
+        </div>
+
+        <button
+          class="assign-close"
+          onclick="closeDirectAssignModal()">
+          ✕
+        </button>
+      </div>
+
+      <div id="directAssignContent"></div>
+    </div>
+  </div>
 
   <div id="assignModal" class="assign-overlay">
     <div class="assign-box">
