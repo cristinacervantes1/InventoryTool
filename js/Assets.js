@@ -207,6 +207,8 @@ function updateAssetAssignee(requestRow, newAssignee) {
 }
 
 function registerEquipmentFromRequest(requestRow) {
+  Logger.log("registerEquipmentFromRequest ejecutada");
+  Logger.log(requestRow);
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Assets");
   const data = sheet.getDataRange().getValues();
 
@@ -272,19 +274,34 @@ function registerEquipmentFromRequest(requestRow) {
 
   const labeled = internalSN ? "Yes" : "No";
 
-  const newRow = [
-    device,
-    brand,
-    model,
-    sn,
-    team,
-    internalSN,
-    requestedName,
-    labeled
-  ];
+  const newRow = [device, brand, model, sn, team, internalSN, requestedName, labeled];
 
-  sheet.appendRow(newRow);
+  const nextRow = sheet.getLastRow() + 1;
+
+  Logger.log("Hoja: " + sheet.getName());
+  Logger.log("Fila donde se insertará: " + nextRow);
+  Logger.log("Datos a insertar: " + JSON.stringify(newRow));
+
+  sheet
+    .getRange(nextRow, 1, 1, newRow.length)
+    .setValues([newRow]);
+
   SpreadsheetApp.flush();
+
+  const insertedValues = sheet
+    .getRange(nextRow, 1, 1, newRow.length)
+    .getDisplayValues()[0];
+
+  Logger.log("Datos leídos después de insertar:");
+  Logger.log(insertedValues);
+  Logger.log(
+    "Spreadsheet ID: " +
+    SpreadsheetApp.getActiveSpreadsheet().getId()
+  );
+  Logger.log(
+    "Spreadsheet name: " +
+    SpreadsheetApp.getActiveSpreadsheet().getName()
+  );
   return;
 }
 
