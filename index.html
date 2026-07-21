@@ -1244,65 +1244,287 @@
       setActiveMenu("menuUsers");
 
       document.getElementById("pageTitle").textContent = "Users";
-      document.getElementById("pageSubtitle").textContent = "Usuarios disponibles.";
+      document.getElementById("pageSubtitle").textContent =
+        "Manage users, roles, teams, and assigned equipment.";
 
       document.getElementById("content").innerHTML = `
         <div class="card">
-          <h2>Users</h2>
-          <div id="usersTable">Loading users...</div>
+          <div style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:16px;
+            flex-wrap:wrap;
+          ">
+            <div>
+              <h2 style="margin:0;">All Users</h2>
+              <p style="margin:7px 0 0;">
+                View users and their current activity.
+              </p>
+            </div>
+
+            <button
+              class="button"
+              onclick="openAddUserModal()">
+              + Add User
+            </button>
+          </div>
+
+          <input
+            type="text"
+            id="usersSearchInput"
+            placeholder="Search by name, email, team, or role..."
+            oninput="filterSystemUsers()">
+
+          <div id="systemUsersArea" class="empty">
+            Loading users...
+          </div>
         </div>
       `;
 
+      loadSystemUsersPage();
+    }
+
+    function loadSystemUsersPage() {
+      loadSystemUsers(function(users) {
+        loadSystemInventory(function(inventory) {
+          loadSystemRequests(function(requests) {
+            renderSystemUserCards(
+              users || [],
+              inventory || [],
+              requests || []
+            );
+          });
+        });
+      });
+    }
+
+    function loadSystemUsers(callback) {
       if (appCache.users !== null) {
-        renderUsersTable(appCache.users);
+        callback(appCache.users);
         return;
       }
 
       google.script.run
         .withSuccessHandler(function(users) {
           appCache.users = users || [];
-          renderUsersTable(appCache.users);
+          callback(appCache.users);
         })
         .withFailureHandler(function(error) {
-          document.getElementById("usersTable").innerHTML =
-            "Error loading users.";
-
-          console.error(error);
+          showSystemUsersError(error);
         })
         .getVisibleUsers(currentUser.Email);
     }
 
-    function renderUsersTable(users) {
-      const container = document.getElementById("usersTable");
-
-      if (!users || users.length === 0) {
-        container.innerHTML = "<p>No users found.</p>";
+    function loadSystemInventory(callback) {
+      if (appCache.adminInventory !== null) {
+        callback(appCache.adminInventory);
         return;
       }
 
-      container.innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Team</th>
-              <th>Role</th>
-            </tr>
-          </thead>
+      google.script.run
+        .withSuccessHandler(function(inventory) {
+          appCache.adminInventory = inventory || [];
+          callback(appCache.adminInventory);
+        })
+        .withFailureHandler(function(error) {
+          showSystemUsersError(error);
+        })
+        .getAllInventory(currentUser.Email);
+    }
 
-          <tbody>
-            ${users.map(user => `
-              <tr>
-                <td>${user.Name || ""}</td>
-                <td>${user.Email || ""}</td>
-                <td>${user.Team || ""}</td>
-                <td>${user.Role || ""}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      `;
+    function loadSystemRequests(callback) {
+      if (appCache.adminRequests !== null) {
+        callback(appCache.adminRequests);
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(requests) {
+          appCache.adminRequests = requests || [];
+          callback(appCache.adminRequests);
+        })
+        .withFailureHandler(function(error) {
+          showSystemUsersError(error);
+        })
+        .getVisibleRequests(currentUser.Email);
+    }
+
+    function showSystemUsersError(error) {
+      const container = document.getElementById("systemUsersArea");
+
+      if (container) {
+        container.innerHTML =
+          "Error loading users: " + error.message;
+      }
+
+      console.error(error);
+    }
+
+    function renderSystemUserCards(users, inventory, requests) {
+      const container = document.getElementById("systemUsersArea");
+
+      if (!container) {
+        return;
+      }
+
+      if (!users || users.length === 0) {
+        container.className = "";
+        container.innerHTML = `
+          <p class="empty">No users found.</p>
+        `;
+        return;
+      }
+
+      const cards = users.map(user => {
+        const userName = String(user.Name || "").trim();
+        const normalizedUserName = userName.toLowerCase();
+
+        const userAssets = inventory.filter(asset =>
+          String(asset.Assignee || "")
+            .trim()
+            .toLowerCase() === normalizedUserName
+        );
+
+        const userRequests = requests.filter(request =>
+          String(request.Requested_name || "")
+            .trim()
+            .toLowerCase() === normalizedUserName
+        );
+
+        const pendingRequests = userRequests.filter(request =>
+          String(request.Status || "")
+            .trim()
+            .toLowerCase() === "pending"
+        );
+
+        const initials = getUserInitials(userName);
+        const roleLabel = formatUserRole(user.Role);
+
+        return `
+          <div
+            class="team-member-card system-user-card"
+            data-search="${[
+              user.Name || "",
+              user.Email || "",
+              user.Team || "",
+              user.Role || ""
+            ].join(" ").toLowerCase()}">
+
+            <div class="team-member-header">
+              <div class="team-member-avatar">
+                ${initials}
+              </div>
+
+              <div style="min-width:0;">
+                <div class="team-member-name">
+                  ${userName || "Unnamed User"}
+                </div>
+
+                <div class="team-member-email">
+                  ${user.Email || ""}
+                </div>
+              </div>
+            </div>
+
+            <div style="
+              display:flex;
+              gap:8px;
+              flex-wrap:wrap;
+              margin-top:14px;
+            ">
+              <span class="badge assigned">
+                ${user.Team || "No team"}
+              </span>
+
+              <span class="badge available">
+                ${roleLabel}
+              </span>
+            </div>
+
+            <div class="team-member-stats">
+              <div class="team-stat">
+                <div class="team-stat-number">
+                  ${userAssets.length}
+                </div>
+
+                <div class="team-stat-label">
+                  Assigned equipment
+                </div>
+              </div>
+
+              <div class="team-stat">
+                <div class="team-stat-number">
+                  ${pendingRequests.length}
+                </div>
+
+                <div class="team-stat-label">
+                  Active requests
+                </div>
+              </div>
+            </div>
+
+            <div class="team-member-actions">
+              <button
+                class="team-action-button"
+                onclick="openTeamEquipment('${user.Email}')">
+                💻 Equipment
+              </button>
+
+              <button
+                class="team-action-button"
+                onclick="openTeamRequests('${user.Email}')">
+                📝 Requests
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      container.className = "team-members-grid";
+      container.innerHTML = cards;
+    }
+
+    function formatUserRole(role) {
+      const normalizedRole = String(role || "")
+        .trim()
+        .toLowerCase();
+
+      const roleLabels = {
+        user: "User",
+        team_admin: "Team Admin",
+        system_admin: "System Admin"
+      };
+
+      return roleLabels[normalizedRole] || role || "User";
+    }
+
+    function filterSystemUsers() {
+      const input = document.getElementById("usersSearchInput");
+
+      if (!input) {
+        return;
+      }
+
+      const search = String(input.value || "")
+        .trim()
+        .toLowerCase();
+
+      document
+        .querySelectorAll(".system-user-card")
+        .forEach(card => {
+          const searchableText =
+            String(card.dataset.search || "");
+
+          card.style.display =
+            searchableText.includes(search)
+              ? ""
+              : "none";
+        });
+    }
+
+    function openAddUserModal() {
+      alert("Add User form will be added next.");
     }
 
     function showActiveRequests() {
@@ -1451,9 +1673,11 @@
             Assign to
           </label>
 
-          <select
-            id="assignUserSelect"
-            onchange="selectAssignUserFromDropdown()"
+          <input
+            type="text"
+            id="assignUserSearch"
+            placeholder="Search by name, email, or team..."
+            oninput="filterAssignUsers()"
             style="
               width:100%;
               padding:12px;
@@ -1461,10 +1685,20 @@
               border:1px solid #d0d5dd;
               border-radius:10px;
               font-size:14px;
+              box-sizing:border-box;
+            ">
+
+          <div
+            id="assignUsersList"
+            style="
+              margin-top:10px;
+              max-height:220px;
+              overflow-y:auto;
+              border:1px solid #e5e7eb;
+              border-radius:12px;
               background:white;
             ">
-            <option value="">Select a user...</option>
-          </select>
+          </div>
         </div>
 
         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px;">
@@ -1488,7 +1722,7 @@
       google.script.run
         .withSuccessHandler(function(users) {
           availableUsers = users || [];
-          renderAssignUserDropdown();
+          renderAssignUsersList(availableUsers);;
         })
         .getVisibleUsers(currentUser.Email);
       modal.style.display = "flex";
@@ -1501,38 +1735,97 @@
       selectedDirectAssignUser = null;
     }
 
-    function renderAssignUserDropdown() {
-      const select = document.getElementById("assignUserSelect");
+    function renderAssignUsersList(users) {
+      const container = document.getElementById("assignUsersList");
 
-      if (!select) {
+      if (!container) {
         return;
       }
 
-      select.innerHTML = `
-        <option value="">Select a user...</option>
-        ${availableUsers.map(user => `
-          <option value="${user.Email}">
-            ${user.Name} — ${user.Team || "No team"}
-          </option>
-        `).join("")}
-      `;
+      if (!users || users.length === 0) {
+        container.innerHTML = `
+          <div style="padding:14px; color:#667085;">
+            No users found.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = users.map(user => {
+        const isSelected =
+          selectedDirectAssignUser &&
+          String(selectedDirectAssignUser.Email || "") ===
+          String(user.Email || "");
+
+        return `
+          <div
+            class="assign-user-row"
+            onclick='selectDirectAssignUser(${JSON.stringify(user)})'
+            style="
+              ${isSelected
+                ? "background:#eef4ff; border-color:#2563eb;"
+                : ""}
+            ">
+
+            <div style="font-weight:600; color:#172033;">
+              ${user.Name || "Unnamed user"}
+            </div>
+
+            <div style="font-size:13px; color:#667085; margin-top:3px;">
+              ${user.Email || ""}
+            </div>
+
+            <div style="font-size:12px; color:#98a2b3; margin-top:3px;">
+              ${user.Team || "No team"}
+            </div>
+          </div>
+        `;
+      }).join("");
     }
 
-    function selectAssignUserFromDropdown() {
-      const select = document.getElementById("assignUserSelect");
+    function filterAssignUsers() {
+      const input = document.getElementById("assignUserSearch");
+
+      if (!input) {
+        return;
+      }
+
+      const search = String(input.value || "")
+        .trim()
+        .toLowerCase();
+
+      const filteredUsers = availableUsers.filter(user => {
+        const name = String(user.Name || "").toLowerCase();
+        const email = String(user.Email || "").toLowerCase();
+        const team = String(user.Team || "").toLowerCase();
+
+        return (
+          name.includes(search) ||
+          email.includes(search) ||
+          team.includes(search)
+        );
+      });
+
+      renderAssignUsersList(filteredUsers);
+    }
+
+    function selectDirectAssignUser(user) {
+      selectedDirectAssignUser = user;
+
+      const searchInput = document.getElementById("assignUserSearch");
       const assignButton = document.getElementById("directAssignButton");
 
-      selectedDirectAssignUser = availableUsers.find(user =>
-        String(user.Email || "") === String(select?.value || "")
-      ) || null;
+      if (searchInput) {
+        searchInput.value = user.Name || user.Email || "";
+      }
 
       if (assignButton) {
-        assignButton.disabled = !selectedDirectAssignUser;
-        assignButton.style.opacity = selectedDirectAssignUser ? "1" : ".5";
-        assignButton.style.cursor = selectedDirectAssignUser
-          ? "pointer"
-          : "not-allowed";
+        assignButton.disabled = false;
+        assignButton.style.opacity = "1";
+        assignButton.style.cursor = "pointer";
       }
+
+      renderAssignUsersList([user]);
     }
 
     function confirmDirectAssignment() {
