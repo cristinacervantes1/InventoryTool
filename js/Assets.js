@@ -394,3 +394,72 @@ function assignSelectedAssetToUser(assetData, requestedName, requestedTeam) {
     success: true
   };
 }
+
+function releaseAllAssetsForUser(userName) {
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getSheetByName("Assets");
+
+  if (!sheet) {
+    throw new Error("Assets sheet was not found.");
+  }
+
+  const data = sheet.getDataRange().getValues();
+
+  if (data.length === 0) {
+    return {
+      releasedAssets: 0
+    };
+  }
+
+  const headers = data[0].map(header =>
+    String(header || "").trim()
+  );
+
+  const assigneeCol = headers.indexOf("Assignee");
+  const teamCol = headers.indexOf("Team");
+
+  if (assigneeCol === -1) {
+    throw new Error(
+      'The "Assignee" column was not found in Assets.'
+    );
+  }
+
+  if (teamCol === -1) {
+    throw new Error(
+      'The "Team" column was not found in Assets.'
+    );
+  }
+
+  const normalizedUserName = String(userName || "")
+    .trim()
+    .toLowerCase();
+
+  let releasedAssets = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const currentAssignee = String(
+      data[i][assigneeCol] || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    if (currentAssignee !== normalizedUserName) {
+      continue;
+    }
+
+    sheet
+      .getRange(i + 1, assigneeCol + 1)
+      .setValue("Available");
+
+    sheet
+      .getRange(i + 1, teamCol + 1)
+      .setValue("");
+
+    releasedAssets++;
+  }
+
+  SpreadsheetApp.flush();
+
+  return {releasedAssets: releasedAssets};
+}
