@@ -1,0 +1,607 @@
+<script>
+  //INVENTORY  
+  function showMyInventory() {
+    setActiveMenu("menuMyInventory");
+    document.getElementById("pageTitle").textContent = "My Inventory";
+    document.getElementById("pageSubtitle").textContent = "Estos son tus equipos asignados.";
+
+    document.getElementById("content").innerHTML = `
+      <div class="card">
+        <h2>Actions</h2>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <button class="button" onclick="openRequestForm('request_equipment')">Request Equipment</button>
+          <button class="button" onclick="openRequestForm('register_equipment')">Register Equipment</button>
+          <button class="button" onclick="openRequestForm('damaged_equipment')">Report Damaged Equipment</button>
+          <button class="button" onclick="openRequestForm('return_equipment')">Return Equipment</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>My Equipment</h2>
+        <input type="text" id="searchInput" placeholder="Buscar en mi inventario..." oninput="filterTable()">
+        <div id="tableArea" class="empty">Cargando inventario...</div>
+      </div>
+    `;
+
+    if (appCache.myInventory !== null) {
+      currentData = appCache.myInventory;
+      renderTable(currentData);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        appCache.myInventory = data || [];
+        currentData = appCache.myInventory;
+        renderTable(currentData);
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById("tableArea").innerHTML =
+          "Error cargando inventario: " + error.message;
+
+        console.error(error);
+      })
+      .getMyInventory(currentUser.Email);
+  }
+
+  function showAdminInventory() {
+    setActiveMenu("menuAdminInventory");
+
+    const role = String(currentUser.Role || "").toLowerCase().trim();
+
+    if (role === "team_admin") {
+      document.getElementById("pageTitle").textContent = "Team Inventory";
+      document.getElementById("pageSubtitle").textContent = "Inventario de tu equipo.";
+    } else {
+      document.getElementById("pageTitle").textContent = "Inventory";
+      document.getElementById("pageSubtitle").textContent = "Inventario general de equipos.";
+    }
+
+    document.getElementById("content").innerHTML = `
+      <div class="card">
+        <h2>${role === "team_admin" ? "Team Inventory Overview" : "Inventory Overview"}</h2>
+        <div id="inventorySummary"></div>
+      </div>
+
+      <div class="card" id="inventoryTableCard" style="display:none;">
+        <h2 id="inventoryTableTitle">Available Equipment</h2>
+
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Search available equipment..."
+          oninput="filterTable()">
+
+        <div id="tableArea"></div>
+      </div>
+    `;
+
+    if (appCache.adminInventory !== null) {
+      currentData = appCache.adminInventory;
+      renderInventorySummary(currentData);
+      return;
+    }
+
+    const successHandler = function(data) {
+      appCache.adminInventory = data || [];
+      currentData = appCache.adminInventory;
+
+      renderInventorySummary(currentData);
+    };
+
+    const failureHandler = function(error) {
+      document.getElementById("tableArea").innerHTML =
+        "Error cargando inventario: " + error.message;
+
+      console.error(error);
+    };
+
+    if (role === "team_admin") {
+      google.script.run
+        .withSuccessHandler(successHandler)
+        .withFailureHandler(failureHandler)
+        .getTeamInventory(currentUser.Email);
+    } else {
+      google.script.run
+        .withSuccessHandler(successHandler)
+        .withFailureHandler(failureHandler)
+        .getAllInventory(currentUser.Email);
+    }
+  }
+
+  function openAdminInventory() {
+    const role = String(currentUser.Role || "").trim().toLowerCase();
+
+    if (role === "team_admin") {
+      showTeamInventory();
+    } else {
+      showAdminInventory();
+    }
+
+  }
+
+  function renderInventorySummary(data) {
+    const container = document.getElementById("inventorySummary");
+
+    if (!container) {
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      container.innerHTML = `
+        <p class="empty">No inventory data available.</p>
+      `;
+      return;
+    }
+
+    const summary = {};
+
+    let totalAssets = 0;
+    let totalAvailable = 0;
+    let totalDamaged = 0;
+
+    data.forEach(asset => {
+      const device =
+        String(asset.Device || "Other").trim() || "Other";
+
+      const assignee = String(asset.Assignee || "")
+        .trim()
+        .toLowerCase();
+
+      totalAssets += 1;
+
+      if (assignee === "available") {
+        totalAvailable += 1;
+      }
+
+      if (assignee === "damaged") {
+        totalDamaged += 1;
+      }
+
+      if (!summary[device]) {
+        summary[device] = {
+          total: 0,
+          available: 0
+        };
+      }
+
+      summary[device].total += 1;
+
+      if (assignee === "available") {
+        summary[device].available += 1;
+      }
+    });
+
+    const deviceCards = Object.entries(summary)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([device, counts]) => `
+        <button
+          class="device-summary-card"
+          onclick="filterInventoryByDevice('${device.replace(/'/g, "\\'")}')">
+
+          <div class="device-summary-name">
+            ${getDeviceIcon(device)}
+            <span>${device}</span>
+          </div>
+
+          <div class="device-summary-total">
+            ${counts.total}
+            <span class="device-summary-label">Total</span>
+          </div>
+
+          <div class="device-summary-available">
+            ${counts.available} available
+          </div>
+        </button>
+      `)
+      .join("");
+
+    container.innerHTML = `
+      <div class="inventory-main-stats">
+        <div class="inventory-main-stat">
+          <div class="inventory-main-number">
+            ${totalAssets}
+          </div>
+
+          <div class="inventory-main-label">
+            Total Assets
+          </div>
+        </div>
+
+        <div class="inventory-main-stat">
+          <div class="inventory-main-number">
+            ${totalAvailable}
+          </div>
+
+          <div class="inventory-main-label">
+            Available
+          </div>
+        </div>
+
+        <div class="inventory-main-stat">
+          <div class="inventory-main-number">
+            ${totalDamaged}
+          </div>
+
+          <div class="inventory-main-label">
+            Damaged
+          </div>
+        </div>
+      </div>
+
+      <div class="inventory-device-grid">
+        ${deviceCards}
+      </div>
+    `;
+  }
+
+  function filterInventoryByDevice(device) {
+    const normalizedDevice = String(device || "")
+      .trim()
+      .toLowerCase();
+
+    const fullInventory = appCache.adminInventory || [];
+
+    const filteredData = fullInventory.filter(asset => {
+      const assetDevice = String(asset.Device || "")
+        .trim()
+        .toLowerCase();
+
+      const assignee = String(asset.Assignee || "")
+        .trim()
+        .toLowerCase();
+
+      return (
+        assetDevice === normalizedDevice &&
+        assignee === "available"
+      );
+    });
+
+    // La búsqueda posterior también se limita a estos disponibles.
+    currentData = filteredData;
+
+    const tableCard = document.getElementById("inventoryTableCard");
+    const tableTitle = document.getElementById("inventoryTableTitle");
+    const searchInput = document.getElementById("searchInput");
+
+    if (tableCard) {
+      tableCard.style.display = "block";
+    }
+
+    if (tableTitle) {
+      tableTitle.textContent = `${device} — Available`;
+    }
+
+    if (searchInput) {
+      searchInput.value = "";
+      searchInput.placeholder = `Search available ${device}...`;
+    }
+
+    inventoryAssignmentMode = true;
+
+    renderTable(filteredData);
+
+    if (tableCard) {
+      tableCard.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+  }
+
+  function renderTable(data) {
+    const tableArea = document.getElementById("tableArea");
+    if (!tableArea) return;
+
+    if (!data || data.length === 0) {
+      tableArea.innerHTML = `<p class="empty">No se encontraron equipos.</p>`;
+      return;
+    }
+
+    tableArea.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Brand</th>
+            <th>Model</th>
+            <th>SN</th>
+            <th>Team</th>
+            <th>Internal SN</th>
+            <th>Assignee</th>
+            <th>Labeled</th>
+            ${inventoryAssignmentMode ? '<th style="width:70px;">Assign</th>' : ""}
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(item => {
+            const assignee = item.Assignee || "Available";
+            const badgeClass = assignee === "Available" ? "available" : "assigned";
+            return `
+              <tr>
+                <td>${item.Device || ""}</td>
+                <td>${item.Brand || ""}</td>
+                <td>${item.Model || ""}</td>
+                <td>${item.SN || ""}</td>
+                <td>${item.Team || ""}</td>
+                <td>${item["Internal SN"] || ""}</td>
+                <td><span class="badge ${badgeClass}">${assignee}</span></td>
+                <td>${item.Labeled || ""}</td>
+                ${inventoryAssignmentMode ? `
+                  <td>
+                    <button
+                      class="assign-user-button"
+                      title="Assign Equipment"
+                      onclick='openDirectAssignModal(${JSON.stringify(item)})'>
+                      👤⁺
+                    </button>
+                  </td>
+                ` : ""}
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function filterTable() {
+    const searchInput = document.getElementById("searchInput");
+    if (!searchInput) return;
+
+    const search = searchInput.value.toLowerCase();
+
+    const filtered = currentData.filter(item =>
+      Object.values(item).some(value => String(value).toLowerCase().includes(search))
+    );
+
+    renderTable(filtered);
+  }
+
+  //DIRECTO ASSIGN
+  function openDirectAssignModal(asset) {
+    currentDirectAssignAsset = asset;
+
+    const modal = document.getElementById("directAssignModal");
+    const content = document.getElementById("directAssignContent");
+
+    if (!modal || !content) {
+      console.error("Direct assignment modal was not found.");
+      return;
+    }
+
+    const identifier =
+      asset["Internal SN"] ||
+      asset.SN ||
+      "No identifier";
+
+    content.innerHTML = `
+      <div class="available-asset-option">
+        <div>
+          <strong>${asset.Device || "Equipment"}</strong>
+
+          <div class="team-item-meta">
+            ${asset.Brand || ""} ${asset.Model || ""}
+          </div>
+
+          <div class="team-item-meta">
+            SN: ${asset.SN || "No serial number"}
+          </div>
+
+          <div class="team-item-meta">
+            Internal SN: ${asset["Internal SN"] || "No internal SN"}
+          </div>
+
+          <div class="team-item-meta">
+            Identifier: ${identifier}
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;">
+        <label style="font-weight:600;">
+          Assign to
+        </label>
+
+        <input
+          type="text"
+          id="assignUserSearch"
+          placeholder="Search by name, email, or team..."
+          oninput="filterAssignUsers()"
+          style="
+            width:100%;
+            padding:12px;
+            margin-top:12px;
+            border:1px solid #d0d5dd;
+            border-radius:10px;
+            font-size:14px;
+            box-sizing:border-box;
+          ">
+
+        <div
+          id="assignUsersList"
+          style="
+            margin-top:10px;
+            max-height:220px;
+            overflow-y:auto;
+            border:1px solid #e5e7eb;
+            border-radius:12px;
+            background:white;
+          ">
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px;">
+        <button
+          class="button"
+          style="background:#667085;"
+          onclick="closeDirectAssignModal()">
+          Cancel
+        </button>
+
+        <button
+          id="directAssignButton"
+          class="button"
+          disabled
+          onclick="confirmDirectAssignment()"
+          style="opacity:.5; cursor:not-allowed;">
+          Assign
+        </button>
+      </div>
+    `;
+    google.script.run
+      .withSuccessHandler(function(users) {
+        availableUsers = users || [];
+        renderAssignUsersList(availableUsers);;
+      })
+      .getVisibleUsers(currentUser.Email);
+    modal.style.display = "flex";
+  }
+
+  function closeDirectAssignModal() {
+    document.getElementById("directAssignModal").style.display = "none";
+
+    currentDirectAssignAsset = null;
+    selectedDirectAssignUser = null;
+  }
+
+  function renderAssignUsersList(users) {
+    const container = document.getElementById("assignUsersList");
+
+    if (!container) {
+      return;
+    }
+
+    if (!users || users.length === 0) {
+      container.innerHTML = `
+        <div style="padding:14px; color:#667085;">
+          No users found.
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = users.map(user => {
+      const isSelected =
+        selectedDirectAssignUser &&
+        String(selectedDirectAssignUser.Email || "") ===
+        String(user.Email || "");
+
+      return `
+        <div
+          class="assign-user-row"
+          onclick='selectDirectAssignUser(${JSON.stringify(user)})'
+          style="
+            ${isSelected
+              ? "background:#eef4ff; border-color:#2563eb;"
+              : ""}
+          ">
+
+          <div style="font-weight:600; color:#172033;">
+            ${user.Name || "Unnamed user"}
+          </div>
+
+          <div style="font-size:13px; color:#667085; margin-top:3px;">
+            ${user.Email || ""}
+          </div>
+
+          <div style="font-size:12px; color:#98a2b3; margin-top:3px;">
+            ${user.Team || "No team"}
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function filterAssignUsers() {
+    const input = document.getElementById("assignUserSearch");
+
+    if (!input) {
+      return;
+    }
+
+    const search = String(input.value || "")
+      .trim()
+      .toLowerCase();
+
+    const filteredUsers = availableUsers.filter(user => {
+      const name = String(user.Name || "").toLowerCase();
+      const email = String(user.Email || "").toLowerCase();
+      const team = String(user.Team || "").toLowerCase();
+
+      return (
+        name.includes(search) ||
+        email.includes(search) ||
+        team.includes(search)
+      );
+    });
+
+    renderAssignUsersList(filteredUsers);
+  }
+
+  function selectDirectAssignUser(user) {
+    selectedDirectAssignUser = user;
+
+    const searchInput = document.getElementById("assignUserSearch");
+    const assignButton = document.getElementById("directAssignButton");
+
+    if (searchInput) {
+      searchInput.value = user.Name || user.Email || "";
+    }
+
+    if (assignButton) {
+      assignButton.disabled = false;
+      assignButton.style.opacity = "1";
+      assignButton.style.cursor = "pointer";
+    }
+
+    renderAssignUsersList([user]);
+  }
+
+  function confirmDirectAssignment() {
+    if (!currentDirectAssignAsset || !selectedDirectAssignUser) {
+      alert("Please select an asset and a user.");
+      return;
+    }
+
+    const assignButton = document.getElementById("directAssignButton");
+
+    if (assignButton) {
+      assignButton.disabled = true;
+      assignButton.textContent = "Assigning...";
+      assignButton.style.opacity = ".5";
+      assignButton.style.cursor = "not-allowed";
+    }
+
+    google.script.run
+      .withSuccessHandler(function() {
+        closeDirectAssignModal();
+        clearCache();
+
+        document.getElementById("successModal").style.display = "flex";
+
+        setTimeout(function() {
+          document.getElementById("successModal").style.display = "none";
+        }, 1600);
+
+        showAdminInventory();
+      })
+      .withFailureHandler(function(error) {
+        alert("Error assigning equipment: " + error.message);
+
+        if (assignButton) {
+          assignButton.disabled = false;
+          assignButton.textContent = "Assign";
+          assignButton.style.opacity = "1";
+          assignButton.style.cursor = "pointer";
+        }
+
+        console.error(error);
+      })
+      .assignSelectedAssetToUser(
+        currentDirectAssignAsset,
+        selectedDirectAssignUser.Name,
+        selectedDirectAssignUser.Team
+      );
+  }
+</script>

@@ -1,0 +1,119 @@
+<script>
+  let currentRequestType = null;
+  let currentUser = null;
+  let currentData = [];
+  let availableUsers = [];
+  let currentRequests = [];
+  let currentRequestView = "active";
+  let currentMyRequestView = "active";
+  let currentAssignRequest = null;
+  let currentAvailableAssets = [];
+  let inventoryAssignmentMode = false;
+  let currentDirectAssignAsset = null;
+  let selectedDirectAssignUser = null;
+  let currentUserToDelete = null;
+  let currentUserToEdit = null;
+
+  const appCache = {myInventory: null, adminInventory: null, myRequests: null, adminRequests: null, users: null};
+
+  const DEVICE_TYPES = [
+    "Laptop",
+    "GE Laptop",
+    "PC",
+    "Monitor",
+    "Dock",
+    "Mouse",
+    "Keyboard",
+    "Headset",
+    "Webcam",
+    "YubiKey",
+    "Lock Cable",
+    "UPS (No Break)",
+    "Other"
+  ];
+
+  function clearCache() {
+    Object.keys(appCache).forEach(key => {appCache[key] = null; });
+  }
+
+  function loginUser() {
+    const email = document.getElementById("emailInput").value.trim();
+    const message = document.getElementById("loginMessage");
+
+    if (!email) {
+      message.textContent = "Ingresa un correo.";
+      return;
+    }
+
+    message.textContent = "Validando usuario...";
+
+    google.script.run
+      .withSuccessHandler(function(user) {
+        if (!user) {
+          message.textContent = "Usuario no encontrado.";
+          return;
+        }
+
+        currentUser = user;
+
+        document.getElementById("loginPage").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        document.getElementById("userInfo").textContent = `${user.Name} | ${user.Team}`;
+
+        // Reset admin menu every login
+        document.getElementById("adminMenu").style.display = "none";
+
+        const role = String(user.Role || "").toLowerCase().trim();
+
+        document.getElementById("menuUsers").style.display = "none";
+
+        if (role === "team_admin") {
+          document.getElementById("adminMenu").style.display = "block";
+          document.getElementById("menuAdminInventory").textContent = "Team Inventory";
+          document.getElementById("menuAdminRequests").textContent = "Team Requests";
+
+          document.getElementById("menuAdminInventory").onclick = showTeamInventory;
+          document.getElementById("menuAdminRequests").onclick = showAdminRequests;
+        }
+
+        if (role === "system_admin") {
+          document.getElementById("adminMenu").style.display = "block";
+          document.getElementById("menuUsers").style.display = "block";
+          document.getElementById("menuAdminInventory").textContent = "Inventory";
+          document.getElementById("menuAdminRequests").textContent = "Requests";
+
+          document.getElementById("menuAdminInventory").onclick = showAdminInventory;
+          document.getElementById("menuAdminRequests").onclick = showAdminRequests;
+        }
+
+        showMyInventory();
+      })
+      .withFailureHandler(function(error) {
+        message.textContent = "Error validando usuario: " + error.message;
+        console.error(error);
+      })
+      .getUserByEmail(email);
+  }
+
+  function logout() {
+    clearCache();
+
+    currentUser = null;
+    currentData = [];
+    currentRequests = [];
+    currentAssignRequest = null;
+    currentAvailableAssets = [];
+
+    document.getElementById("adminMenu").style.display = "none";
+    document.getElementById("app").style.display = "none";
+    document.getElementById("loginPage").style.display = "block";
+    document.getElementById("emailInput").value = "";
+    document.getElementById("loginMessage").textContent = "";
+  }
+
+  function setActiveMenu(activeId) {
+    document.querySelectorAll(".menu-item").forEach(item => item.classList.remove("active"));
+    const activeItem = document.getElementById(activeId);
+    if (activeItem) activeItem.classList.add("active");
+  }
+</script>

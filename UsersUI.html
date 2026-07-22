@@ -1,0 +1,1341 @@
+<script>
+  //Página
+
+  function showUsers() {
+    setActiveMenu("menuUsers");
+
+    document.getElementById("pageTitle").textContent = "Users";
+    document.getElementById("pageSubtitle").textContent =
+      "Manage users, roles, teams, and assigned equipment.";
+
+    document.getElementById("content").innerHTML = `
+      <div class="card">
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:16px;
+          flex-wrap:wrap;
+        ">
+          <div>
+            <h2 style="margin:0;">All Users</h2>
+            <p style="margin:7px 0 0;">
+              View users and their current activity.
+            </p>
+          </div>
+
+          <button
+            class="button"
+            onclick="openAddUserModal()">
+            + Add User
+          </button>
+        </div>
+
+        <input
+          type="text"
+          id="usersSearchInput"
+          placeholder="Search by name, email, team, or role..."
+          oninput="filterSystemUsers()">
+
+        <div id="systemUsersArea" class="empty">
+          Loading users...
+        </div>
+      </div>
+    `;
+
+    loadSystemUsersPage();
+  }
+
+  function loadSystemUsersPage() {
+    loadSystemUsers(function(users) {
+      loadSystemInventory(function(inventory) {
+        loadSystemRequests(function(requests) {
+          renderSystemUserCards(
+            users || [],
+            inventory || [],
+            requests || []
+          );
+        });
+      });
+    });
+  }
+
+  function loadSystemUsers(callback) {
+    if (appCache.users !== null) {
+      callback(appCache.users);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(users) {
+        appCache.users = users || [];
+        callback(appCache.users);
+      })
+      .withFailureHandler(function(error) {
+        showSystemUsersError(error);
+      })
+      .getVisibleUsers(currentUser.Email);
+  }
+
+  function loadSystemInventory(callback) {
+    if (appCache.adminInventory !== null) {
+      callback(appCache.adminInventory);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(inventory) {
+        appCache.adminInventory = inventory || [];
+        callback(appCache.adminInventory);
+      })
+      .withFailureHandler(function(error) {
+        showSystemUsersError(error);
+      })
+      .getAllInventory(currentUser.Email);
+  }
+
+  function loadSystemRequests(callback) {
+    if (appCache.adminRequests !== null) {
+      callback(appCache.adminRequests);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(requests) {
+        appCache.adminRequests = requests || [];
+        callback(appCache.adminRequests);
+      })
+      .withFailureHandler(function(error) {
+        showSystemUsersError(error);
+      })
+      .getVisibleRequests(currentUser.Email);
+  }
+
+  function showSystemUsersError(error) {
+    const container = document.getElementById("systemUsersArea");
+
+    if (container) {
+      container.innerHTML =
+        "Error loading users: " + error.message;
+    }
+
+    console.error(error);
+  }
+
+  //Cards
+  function renderSystemUserCards(users, inventory, requests) {
+    const container = document.getElementById("systemUsersArea");
+
+    if (!container) {
+      return;
+    }
+
+    if (!users || users.length === 0) {
+      container.className = "";
+      container.innerHTML = `
+        <p class="empty">No users found.</p>
+      `;
+      return;
+    }
+
+    const cards = users.map(user => {
+      const userName = String(user.Name || "").trim();
+      const normalizedUserName = userName.toLowerCase();
+
+      const userAssets = inventory.filter(asset =>
+        String(asset.Assignee || "")
+          .trim()
+          .toLowerCase() === normalizedUserName
+      );
+
+      const userRequests = requests.filter(request =>
+        String(request.Requested_name || "")
+          .trim()
+          .toLowerCase() === normalizedUserName
+      );
+
+      const pendingRequests = userRequests.filter(request =>
+        String(request.Status || "")
+          .trim()
+          .toLowerCase() === "pending"
+      );
+
+      const initials = getUserInitials(userName);
+      const roleLabel = formatUserRole(user.Role);
+
+      return `
+        <div
+          class="team-member-card system-user-card"
+          data-search="${[
+            user.Name || "",
+            user.Email || "",
+            user.Team || "",
+            user.Role || ""
+          ].join(" ").toLowerCase()}">
+
+          <div class="user-card-actions">
+            <button
+              class="user-card-icon-btn edit-user-icon"
+              title="Edit User"
+              aria-label="Edit User"
+              onclick="openEditUserModal('${user.Email}')">
+
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2">
+
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M16.862 3.487a2.1 2.1 0 113 2.97L8.25 18.07 4 19l.93-4.25L16.862 3.487z">
+                </path>
+              </svg>
+            </button>
+
+            <button
+              class="user-card-icon-btn delete-user-icon"
+              title="Delete User"
+              aria-label="Delete User"
+              onclick="openDeleteUserModal('${user.Email}')">
+
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2">
+
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v5m4-5v5">
+                </path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="team-member-header">
+            <div class="team-member-avatar">
+              ${initials}
+            </div>
+
+            <div style="min-width:0;">
+              <div class="team-member-name">
+                ${userName || "Unnamed User"}
+              </div>
+
+              <div class="team-member-email">
+                ${user.Email || ""}
+              </div>
+            </div>
+          </div>
+
+          <div style="
+            display:flex;
+            gap:8px;
+            flex-wrap:wrap;
+            margin-top:14px;
+          ">
+            <span class="badge assigned">
+              ${user.Team || "No team"}
+            </span>
+
+            <span class="badge available">
+              ${roleLabel}
+            </span>
+          </div>
+
+          <div class="team-member-stats">
+            <div class="team-stat">
+              <div class="team-stat-number">
+                ${userAssets.length}
+              </div>
+
+              <div class="team-stat-label">
+                Assigned equipment
+              </div>
+            </div>
+
+            <div class="team-stat">
+              <div class="team-stat-number">
+                ${pendingRequests.length}
+              </div>
+
+              <div class="team-stat-label">
+                Active requests
+              </div>
+            </div>
+          </div>
+
+          <div class="team-member-actions">
+
+            <button
+              class="team-action-button"
+              onclick="openTeamEquipment('${user.Email}')">
+              💻 Equipment
+            </button>
+
+            <button
+              class="team-action-button"
+              onclick="openTeamRequests('${user.Email}')">
+              📝 Requests
+            </button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    container.className = "team-members-grid";
+    container.innerHTML = cards;
+  }
+
+  function filterSystemUsers() {
+    const input = document.getElementById("usersSearchInput");
+
+    if (!input) {
+      return;
+    }
+
+    const search = String(input.value || "")
+      .trim()
+      .toLowerCase();
+
+    document
+      .querySelectorAll(".system-user-card")
+      .forEach(card => {
+        const searchableText =
+          String(card.dataset.search || "");
+
+        card.style.display =
+          searchableText.includes(search)
+            ? ""
+            : "none";
+      });
+  }
+
+  //ADD USER
+  function openAddUserModal() {
+    const modal =
+      document.getElementById("addUserModal");
+
+    const nameInput =
+      document.getElementById("newUserName");
+
+    const emailInput =
+      document.getElementById("newUserEmail");
+
+    const teamInput =
+      document.getElementById("newUserTeam");
+
+    const roleInput =
+      document.getElementById("newUserRole");
+
+    const errorBox =
+      document.getElementById("addUserError");
+
+    const employeeIdInput =
+      document.getElementById("newEmployeeId");
+
+    if (employeeIdInput) employeeIdInput.value = "";
+
+    if (!modal) {
+      console.error("Add User modal was not found.");
+      return;
+    }
+
+    if (nameInput) nameInput.value = "";
+    if (emailInput) emailInput.value = "";
+    if (teamInput) teamInput.value = "";
+    if (roleInput) roleInput.value = "user";
+
+    if (errorBox) {
+      errorBox.style.display = "none";
+      errorBox.textContent = "";
+    }
+
+    modal.style.display = "flex";
+
+    setTimeout(function() {
+      nameInput?.focus();
+    }, 50);
+  }
+
+  function closeAddUserModal() {
+    const modal =
+      document.getElementById("addUserModal");
+
+    if (modal) {
+      modal.style.display = "none";
+    }
+  }
+
+  function submitNewUser() {
+    const name = String(
+      document.getElementById("newUserName")
+        ?.value || ""
+    ).trim();
+
+    const email = String(
+      document.getElementById("newUserEmail")
+        ?.value || ""
+    ).trim();
+
+    const team = String(
+      document.getElementById("newUserTeam")
+        ?.value || ""
+    ).trim();
+
+    const role = String(
+      document.getElementById("newUserRole")
+        ?.value || ""
+    ).trim();
+
+    const errorBox =
+      document.getElementById("addUserError");
+
+    const saveButton =
+      document.getElementById("saveUserButton");
+
+    const employeeId = String(
+      document.getElementById("newEmployeeId")
+        ?.value || ""
+    ).trim();
+
+    if (!name || !email || !employeeId || !team || !role) {
+      showAddUserError(
+        "Complete all required fields."
+      );
+      return;
+    }
+
+    if (!email.includes("@")) {
+      showAddUserError(
+        "Enter a valid email address."
+      );
+      return;
+    }
+
+    const newUser = {
+      Name: name,
+      Email: email,
+      ID: employeeId,
+      Team: team,
+      Role: role
+    };
+
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = "Adding...";
+      saveButton.style.opacity = ".5";
+      saveButton.style.cursor = "not-allowed";
+    }
+
+    if (errorBox) {
+      errorBox.style.display = "none";
+      errorBox.textContent = "";
+    }
+
+    google.script.run
+      .withSuccessHandler(function() {
+        closeAddUserModal();
+
+        clearCache();
+
+        showUsers();
+
+        const successModal =
+          document.getElementById("successModal");
+
+        const successTitle =
+          successModal?.querySelector(
+            ".notification-title"
+          );
+
+        const successText =
+          successModal?.querySelector(
+            ".notification-text"
+          );
+
+        if (successTitle) {
+          successTitle.textContent =
+            "User Added";
+        }
+
+        if (successText) {
+          successText.textContent =
+            name + " was added successfully.";
+        }
+
+        if (successModal) {
+          successModal.style.display = "flex";
+
+          setTimeout(function() {
+            successModal.style.display = "none";
+          }, 1600);
+        }
+      })
+      .withFailureHandler(function(error) {
+        showAddUserError(error.message);
+
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.textContent = "Add User";
+          saveButton.style.opacity = "1";
+          saveButton.style.cursor = "pointer";
+        }
+
+        console.error(error);
+      })
+      .createUser(
+        newUser,
+        currentUser.Email
+      );
+  }
+
+  function showAddUserError(message) {
+    const errorBox =
+      document.getElementById("addUserError");
+
+    if (!errorBox) {
+      alert(message);
+      return;
+    }
+
+    errorBox.textContent =
+      message || "Unable to add user.";
+
+    errorBox.style.display = "block";
+  }
+
+  //EDIT USER
+  function openEditUserModal(userEmail) {
+    const role = String(currentUser?.Role || "")
+      .trim()
+      .toLowerCase();
+
+    if (role !== "system_admin") {
+      alert("Only a System Admin can edit users.");
+      return;
+    }
+
+    const users = appCache.users || [];
+
+    const user = users.find(item =>
+      String(item.Email || "")
+        .trim()
+        .toLowerCase() ===
+      String(userEmail || "")
+        .trim()
+        .toLowerCase()
+    );
+
+    if (!user) {
+      alert("User not found.");
+      return;
+    }
+
+    currentUserToEdit = user;
+
+    document.getElementById("editUserName").value =
+      user.Name || "";
+
+    document.getElementById("editUserEmail").value =
+      user.Email || "";
+
+    document.getElementById("editEmployeeId").value =
+      user.ID || "";
+
+    document.getElementById("editUserTeam").value =
+      user.Team || "";
+
+    document.getElementById("editUserRole").value =
+      String(user.Role || "user")
+        .trim()
+        .toLowerCase();
+
+    const errorBox =
+      document.getElementById("editUserError");
+
+    errorBox.style.display = "none";
+    errorBox.textContent = "";
+
+    const saveButton =
+      document.getElementById("saveEditedUserButton");
+
+    saveButton.disabled = false;
+    saveButton.textContent = "Save Changes";
+    saveButton.style.opacity = "1";
+    saveButton.style.cursor = "pointer";
+
+    document.getElementById(
+      "editUserModal"
+    ).style.display = "flex";
+  }
+
+  function closeEditUserModal() {
+    document.getElementById(
+      "editUserModal"
+    ).style.display = "none";
+
+    currentUserToEdit = null;
+  }
+
+  function submitEditedUser() {
+    if (!currentUserToEdit) {
+      return;
+    }
+
+    const name = String(
+      document.getElementById("editUserName").value || ""
+    ).trim();
+
+    const email = String(
+      document.getElementById("editUserEmail").value || ""
+    ).trim();
+
+    const employeeId = String(
+      document.getElementById("editEmployeeId").value || ""
+    ).trim();
+
+    const team = String(
+      document.getElementById("editUserTeam").value || ""
+    ).trim();
+
+    const role = String(
+      document.getElementById("editUserRole").value || ""
+    ).trim();
+
+    if (!name || !email || !employeeId || !team || !role) {
+      showEditUserError(
+        "Complete all required fields."
+      );
+      return;
+    }
+
+    if (!email.includes("@")) {
+      showEditUserError(
+        "Enter a valid email address."
+      );
+      return;
+    }
+
+    const saveButton =
+      document.getElementById("saveEditedUserButton");
+
+    saveButton.disabled = true;
+    saveButton.textContent = "Saving...";
+    saveButton.style.opacity = ".5";
+    saveButton.style.cursor = "not-allowed";
+
+    const updatedUser = {
+      ID: employeeId,
+      Name: name,
+      Email: email,
+      Team: team,
+      Role: role
+    };
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        closeEditUserModal();
+        clearCache();
+        showUsers();
+
+        const successModal =
+          document.getElementById("successModal");
+
+        const successTitle =
+          successModal.querySelector(
+            ".notification-title"
+          );
+
+        const successText =
+          successModal.querySelector(
+            ".notification-text"
+          );
+
+        successTitle.textContent =
+          "User Updated";
+
+        successText.textContent =
+          result.user.Name +
+          " was updated successfully.";
+
+        successModal.style.display = "flex";
+
+        setTimeout(function() {
+          successModal.style.display = "none";
+        }, 1800);
+      })
+      .withFailureHandler(function(error) {
+        showEditUserError(error.message);
+
+        saveButton.disabled = false;
+        saveButton.textContent = "Save Changes";
+        saveButton.style.opacity = "1";
+        saveButton.style.cursor = "pointer";
+
+        console.error(error);
+      })
+      .updateUser(
+        currentUserToEdit.Email,
+        updatedUser,
+        currentUser.Email
+      );
+  }
+
+  function showEditUserError(message) {
+    const errorBox =
+      document.getElementById("editUserError");
+
+    errorBox.textContent =
+      message || "Unable to update user.";
+
+    errorBox.style.display = "block";
+  }
+
+  //DELETE USER
+  function openDeleteUserModal(userEmail) {
+    const modal =
+      document.getElementById("deleteUserModal");
+
+    const content =
+      document.getElementById("deleteUserContent");
+
+    const deleteButton =
+      document.getElementById("confirmDeleteUserButton");
+
+    if (!modal || !content || !deleteButton) {
+      console.error(
+        "Delete User modal was not found."
+      );
+      return;
+    }
+
+    currentUserToDelete = null;
+
+    content.innerHTML = `
+      <p>Loading user information...</p>
+    `;
+
+    deleteButton.disabled = true;
+    deleteButton.textContent = "Delete User";
+    deleteButton.style.opacity = ".5";
+    deleteButton.style.cursor = "not-allowed";
+
+    modal.style.display = "flex";
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        currentUserToDelete = result;
+
+        const assets = result.Assets || [];
+
+        const assetsHtml = assets.length === 0
+          ? `
+            <p class="empty">
+              This user has no assigned equipment.
+            </p>
+          `
+          : `
+            <div class="assign-count">
+              ${assets.length} assigned
+            </div>
+
+            <div class="available-assets-list">
+              ${assets.map(asset => {
+                const description = [
+                  asset.Brand || "",
+                  asset.Model || ""
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+
+                return `
+                  <div class="available-asset-option">
+                    <div>
+                      <strong>
+                        ${asset.Device || "Equipment"}
+                      </strong>
+
+                      <div class="team-item-meta">
+                        ${description || "No brand or model"}
+                      </div>
+
+                      <div class="team-item-meta">
+                        SN: ${asset.SN || "No serial number"}
+                      </div>
+
+                      <div class="team-item-meta">
+                        Internal SN:
+                        ${asset["Internal SN"] || "No internal SN"}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          `;
+
+        content.innerHTML = `
+          <div style="
+            padding:14px;
+            border-radius:12px;
+            background:#fff7ed;
+            color:#9a3412;
+            margin-bottom:18px;
+          ">
+            <strong>
+              This action is permanent.
+            </strong>
+
+            <div style="margin-top:6px;">
+              The user will be permanently deleted and
+              all assigned equipment will become available.
+            </div>
+          </div>
+
+          <div style="margin-bottom:18px;">
+            <div style="
+              font-size:19px;
+              font-weight:700;
+              color:#172033;
+            ">
+              ${result.Name || "Unnamed User"}
+            </div>
+
+            <div style="
+              color:#667085;
+              margin-top:4px;
+            ">
+              ${result.Email || ""}
+            </div>
+
+            <div style="
+              color:#667085;
+              margin-top:4px;
+            ">
+              ${result.Team || "No team"}
+              ·
+              ${formatUserRole(result.Role)}
+            </div>
+          </div>
+
+          <h3 style="margin-bottom:10px;">
+            Equipment to be released
+          </h3>
+
+          ${assetsHtml}
+        `;
+
+        deleteButton.disabled = false;
+        deleteButton.style.opacity = "1";
+        deleteButton.style.cursor = "pointer";
+      })
+      .withFailureHandler(function(error) {
+        content.innerHTML = `
+          <div style="
+            padding:14px;
+            border-radius:10px;
+            background:#fee2e2;
+            color:#b91c1c;
+          ">
+            ${error.message}
+          </div>
+        `;
+
+        console.error(error);
+      })
+      .getUserDeletionPreview(
+        userEmail,
+        currentUser.Email
+      );
+  }
+
+  function closeDeleteUserModal() {
+    const modal =
+      document.getElementById("deleteUserModal");
+
+    if (modal) {
+      modal.style.display = "none";
+    }
+
+    currentUserToDelete = null;
+  }
+
+  function confirmDeleteUser() {
+    if (!currentUserToDelete) {
+      return;
+    }
+
+    const deleteButton =
+      document.getElementById(
+        "confirmDeleteUserButton"
+      );
+
+    if (deleteButton) {
+      deleteButton.disabled = true;
+      deleteButton.textContent = "Deleting...";
+      deleteButton.style.opacity = ".5";
+      deleteButton.style.cursor = "not-allowed";
+    }
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        closeDeleteUserModal();
+
+        clearCache();
+        showUsers();
+
+        const successModal =
+          document.getElementById("successModal");
+
+        const successTitle =
+          successModal?.querySelector(
+            ".notification-title"
+          );
+
+        const successText =
+          successModal?.querySelector(
+            ".notification-text"
+          );
+
+        if (successTitle) {
+          successTitle.textContent =
+            "User Deleted";
+        }
+
+        if (successText) {
+          successText.textContent =
+            result.deletedUser +
+            " was permanently deleted. " +
+            result.releasedAssets +
+            " asset(s) are now available.";
+        }
+
+        if (successModal) {
+          successModal.style.display = "flex";
+
+          setTimeout(function() {
+            successModal.style.display = "none";
+          }, 2200);
+        }
+      })
+      .withFailureHandler(function(error) {
+        alert(
+          "Error deleting user: " +
+          error.message
+        );
+
+        if (deleteButton) {
+          deleteButton.disabled = false;
+          deleteButton.textContent = "Delete User";
+          deleteButton.style.opacity = "1";
+          deleteButton.style.cursor = "pointer";
+        }
+
+        console.error(error);
+      })
+      .deleteUserAndReleaseAssets(
+        currentUserToDelete.Email,
+        currentUser.Email
+      );
+  }
+
+//TEAM OVERVIEW
+  function showTeamInventory() {
+    setActiveMenu("menuAdminInventory");
+    showTeamManagerOverview();
+  }
+
+  function showTeamManagerOverview() {
+    document.getElementById("pageTitle").textContent = "Team Overview";
+
+    document.getElementById("content").innerHTML = `
+      <div class="card">
+        <h2>Team Members</h2>
+
+        <div id="teamMembersArea" class="empty">
+          Loading team information...
+        </div>
+      </div>
+    `;
+
+    loadTeamUsers(function(users) {
+      loadTeamInventoryData(function(inventory) {
+        loadTeamRequestsData(function(requests) {
+          renderTeamMemberCards(
+            users || [],
+            inventory || [],
+            requests || []
+          );
+        });
+      });
+    });
+  }
+
+  function loadTeamUsers(callback) {
+    if (appCache.users !== null) {
+      callback(appCache.users);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(users) {
+        appCache.users = users || [];
+        callback(appCache.users);
+      })
+      .withFailureHandler(function(error) {
+        showTeamOverviewError(error);
+      })
+      .getVisibleUsers(currentUser.Email);
+  }
+
+  function loadTeamInventoryData(callback) {
+    if (appCache.adminInventory !== null) {
+      callback(appCache.adminInventory);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(inventory) {
+        appCache.adminInventory = inventory || [];
+        callback(appCache.adminInventory);
+      })
+      .withFailureHandler(function(error) {
+        showTeamOverviewError(error);
+      })
+      .getTeamInventory(currentUser.Email);
+  }
+
+  function loadTeamRequestsData(callback) {
+    if (appCache.adminRequests !== null) {
+      callback(appCache.adminRequests);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(requests) {
+        appCache.adminRequests = requests || [];
+        callback(appCache.adminRequests);
+      })
+      .withFailureHandler(function(error) {
+        showTeamOverviewError(error);
+      })
+      .getVisibleRequests(currentUser.Email);
+  }
+
+  function showTeamOverviewError(error) {
+    const container = document.getElementById("teamMembersArea");
+
+    if (container) {
+      container.innerHTML =
+        "Error loading team information: " + error.message;
+    }
+
+    console.error(error);
+  }
+
+  function renderTeamMemberCards(users, inventory, requests) {
+    const container = document.getElementById("teamMembersArea");
+
+    if (!container) {
+      return;
+    }
+
+    if (!users || users.length === 0) {
+      container.innerHTML = `
+        <p class="empty">No team members found.</p>
+      `;
+      return;
+    }
+
+    const cards = users.map(user => {
+      const userName = String(user.Name || "").trim();
+      const normalizedUserName = userName.toLowerCase();
+
+      const userAssets = inventory.filter(asset =>
+        String(asset.Assignee || "")
+          .trim()
+          .toLowerCase() === normalizedUserName
+      );
+
+      const userRequests = requests.filter(request =>
+        String(request.Requested_name || "")
+          .trim()
+          .toLowerCase() === normalizedUserName
+      );
+
+      const pendingRequests = userRequests.filter(request =>
+        String(request.Status || "")
+          .trim()
+          .toLowerCase() === "pending"
+      );
+
+      const initials = getUserInitials(userName);
+      
+      return `
+        <div class="team-member-card">
+          <div class="team-member-header">
+            <div class="team-member-avatar">
+              ${initials}
+            </div>
+
+            <div>
+              <div class="team-member-name">
+                ${userName || "Unnamed User"}
+              </div>
+
+              <div class="team-member-email">
+                ${user.Email || ""}
+              </div>
+            </div>
+          </div>
+
+          <div class="team-member-stats">
+            <div class="team-stat">
+              <div class="team-stat-number">
+                ${userAssets.length}
+              </div>
+
+              <div class="team-stat-label">
+                Assigned equipment
+              </div>
+            </div>
+
+            <div class="team-stat">
+              <div class="team-stat-number">
+                ${pendingRequests.length}
+              </div>
+
+              <div class="team-stat-label">
+                Active requests
+              </div>
+            </div>
+          </div>
+
+          <div class="team-member-actions">
+            <button
+              class="team-action-button"
+              onclick="openTeamEquipment('${user.Email}')">
+              💻 Equipment
+            </button>
+
+            <button
+              class="team-action-button"
+              onclick="openTeamRequests('${user.Email}')">
+              📝 Requests
+            </button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    container.className = "team-members-grid";
+    container.innerHTML = cards;
+  }
+
+  function openTeamEquipment(userEmail) {
+    const users = appCache.users || [];
+    const inventory = appCache.adminInventory || [];
+
+    const selectedUser = users.find(user =>
+      String(user.Email || "")
+        .trim()
+        .toLowerCase() ===
+      String(userEmail || "")
+        .trim()
+        .toLowerCase()
+    );
+
+    if (!selectedUser) {
+      alert("User not found.");
+      return;
+    }
+
+    const userName = String(selectedUser.Name || "")
+      .trim()
+      .toLowerCase();
+
+    const userAssets = inventory.filter(asset =>
+      String(asset.Assignee || "")
+        .trim()
+        .toLowerCase() === userName
+    );
+
+    const modal = document.getElementById("teamEquipmentModal");
+    const title = document.getElementById("teamEquipmentTitle");
+    const content = document.getElementById("teamEquipmentContent");
+
+    title.textContent =
+      `${selectedUser.Name || "User"} — Assigned Equipment`;
+
+    if (userAssets.length === 0) {
+      content.innerHTML = `
+        <p class="empty">No assigned equipment found.</p>
+      `;
+
+      modal.style.display = "flex";
+      return;
+    }
+
+    content.innerHTML = `
+      <div class="assign-count">
+        ${userAssets.length} assigned
+      </div>
+
+      <div class="available-assets-list">
+        ${userAssets.map(asset => {
+          const description = [
+            asset.Brand || "",
+            asset.Model || ""
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+          const serialNumber =
+            asset.SN || "No serial number";
+
+          const internalSN =
+            asset["Internal SN"] || "No internal SN";
+
+          return `
+            <div class="available-asset-option">
+              <div>
+                <strong>${asset.Device || "Equipment"}</strong>
+
+                <div class="team-item-meta">
+                  ${description || "No brand or model"}
+                </div>
+
+                <div class="team-item-meta">
+                  SN: ${serialNumber}
+                </div>
+
+                <div class="team-item-meta">
+                  Internal SN: ${internalSN}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+
+    modal.style.display = "flex";
+  }
+
+  function closeTeamEquipment() {
+    document.getElementById("teamEquipmentModal").style.display = "none";
+  }
+
+  function openTeamRequests(userEmail) {
+    const users = appCache.users || [];
+    const requests = appCache.adminRequests || [];
+
+    const normalizedEmail = String(userEmail || "")
+      .trim()
+      .toLowerCase();
+
+    const selectedUser = users.find(user =>
+      String(user.Email || "")
+        .trim()
+        .toLowerCase() === normalizedEmail
+    );
+
+    if (!selectedUser) {
+      alert("User not found.");
+      return;
+    }
+
+    const userName = String(selectedUser.Name || "")
+      .trim()
+      .toLowerCase();
+
+    const pendingRequests = requests.filter(request =>
+      String(request.Requested_name || "")
+        .trim()
+        .toLowerCase() === userName &&
+      String(request.Status || "")
+        .trim()
+        .toLowerCase() === "pending"
+    );
+
+    const modal = document.getElementById("teamRequestsModal");
+    const title = document.getElementById("teamRequestsTitle");
+    const content = document.getElementById("teamRequestsContent");
+
+    title.textContent =
+      `${selectedUser.Name || "User"} — Active Requests`;
+
+    if (pendingRequests.length === 0) {
+      content.innerHTML = `
+        <p class="empty">No active requests found.</p>
+      `;
+
+      modal.style.display = "flex";
+      return;
+    }
+
+    content.innerHTML = `
+      <div class="assign-count">
+        ${pendingRequests.length} active
+      </div>
+
+      <div class="available-assets-list">
+        ${pendingRequests.map(request => {
+          const requestType = formatRequestType(
+            request.Request_type
+          );
+
+          return `
+            <div class="available-asset-option">
+              <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; gap:12px;">
+                  <strong>
+                    ${requestType || "Request"}
+                  </strong>
+
+                  <span class="badge assigned">
+                    ${request.Status || "Pending"}
+                  </span>
+                </div>
+
+                <div class="team-item-meta">
+                  Request ID: ${request.Request_id || ""}
+                </div>
+
+                <div class="team-item-meta">
+                  Device: ${request.Device || "Not specified"}
+                </div>
+
+                <div class="team-item-meta">
+                  Quantity: ${request.Quantity || 1}
+                </div>
+
+                ${
+                  request.Comments
+                    ? `
+                      <div class="team-item-meta">
+                        Comments: ${request.Comments}
+                      </div>
+                    `
+                    : ""
+                }
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+
+    modal.style.display = "flex";
+  }
+
+  function closeTeamRequests() {
+    document.getElementById("teamRequestsModal").style.display = "none";
+  }
+</script>

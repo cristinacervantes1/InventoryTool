@@ -1,0 +1,735 @@
+<script>
+  function showMyRequests() {
+    setActiveMenu("menuMyRequests");
+
+    document.getElementById("pageTitle").textContent = "My Requests";
+    document.getElementById("pageSubtitle").textContent =
+      "Aquí aparecen tus solicitudes.";
+
+    document.getElementById("content").innerHTML = `
+      <div class="card">
+        <div class="request-tabs">
+          <button
+            id="myActiveRequestsTab"
+            class="request-tab active"
+            onclick="showMyActiveRequests()">
+            Active Requests
+          </button>
+
+          <button
+            id="myRequestHistoryTab"
+            class="request-tab"
+            onclick="showMyRequestHistory()">
+            Request History
+          </button>
+        </div>
+
+        <div id="requestsTable">
+          Loading requests...
+        </div>
+      </div>
+    `;
+
+    currentMyRequestView = "active";
+
+    if (appCache.myRequests !== null) {
+      renderMyRequestsView();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(requests) {
+        appCache.myRequests = requests || [];
+        renderMyRequestsView();
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById("requestsTable").innerHTML =
+          "Error loading requests: " + error.message;
+
+        console.error(error);
+      })
+      .getMyRequests(currentUser.Email);
+  }
+
+  function showMyActiveRequests() {
+    currentMyRequestView = "active";
+    renderMyRequestsView();
+  }
+
+  function showMyRequestHistory() {
+    currentMyRequestView = "history";
+    renderMyRequestsView();
+  }
+
+  function renderMyRequestsView() {
+    const requests = appCache.myRequests || [];
+
+    const activeTab = document.getElementById("myActiveRequestsTab");
+    const historyTab = document.getElementById("myRequestHistoryTab");
+
+    if (activeTab && historyTab) {
+      activeTab.classList.toggle(
+        "active",
+        currentMyRequestView === "active"
+      );
+
+      historyTab.classList.toggle(
+        "active",
+        currentMyRequestView === "history"
+      );
+    }
+
+    const filteredRequests = requests.filter(request => {
+      const status = String(request.Status || "")
+        .trim()
+        .toLowerCase();
+
+      if (currentMyRequestView === "active") {
+        return status === "pending";
+      }
+
+      return status === "approved" || status === "rejected";
+    });
+
+    renderRequestsTable(
+      filteredRequests,
+      "requestsTable",
+      false,
+      false
+    );
+  }
+
+  function renderRequestsTable(requests, containerId, showRequestedBy, showActions) {
+    const container = document.getElementById(containerId);
+
+    if (!requests || requests.length === 0) {
+      container.innerHTML = `<p class="empty">No requests found.</p>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Request ID</th>
+            <th>Type</th>
+            ${showRequestedBy ? "<th>Requested By</th>" : ""}
+            <th>Status</th>
+            <th>Device</th>
+            <th>Quantity</th>
+            <th>Created</th>
+            <th>Comments</th>
+            ${showActions ? "<th>Actions</th>" : ""}
+          </tr>
+        </thead>
+        <tbody>
+          ${requests.map(request => `
+            <tr>
+              <td>${request.Request_id || ""}</td>
+              <td>${request.Request_type || ""}</td>
+              ${showRequestedBy ? `<td>${request.Requested_name || ""}</td>` : ""}
+              <td><span class="badge assigned">${request.Status || ""}</span></td>
+              <td>${request.Device || ""}</td>
+              <td>${request.Quantity || ""}</td>
+              <td>${request.Created_at || ""}</td>
+              <td>${request.Comments || ""}</td>
+              ${showActions ? `
+                <td>
+                  ${String(request.Status || "").toLowerCase() === "pending" ? `
+                    <div class="action-buttons">
+
+                      ${request.Request_type === "register_equipment" ? `
+                        <button
+                          class="icon-btn btn-view"
+                          title="View Details"
+                          onclick="openRequestDetails('${request.Request_id}')">
+                          👁
+                        </button>
+                      ` : ""}
+
+                      ${request.Request_type !== "request_equipment" ? `
+                        <button
+                          class="icon-btn btn-approve"
+                          title="Approve"
+                          onclick="reviewRequestFromUI('${request.Request_id}','approve')">
+                          ✓
+                        </button>
+                      ` : ""}
+
+                      ${request.Request_type === "request_equipment" ? `
+                        <button
+                          class="icon-btn btn-assign"
+                          title="Assign Equipment"
+                          onclick="openAssignEquipment('${request.Request_id}')">
+                          +
+                        </button>
+                      ` : ""}
+
+                      <button
+                        class="icon-btn btn-reject"
+                        title="Reject"
+                        onclick="reviewRequestFromUI('${request.Request_id}','reject')">
+                        ✕
+                      </button>
+                                              
+                    </div>
+                  ` : ""}
+                </td>
+              ` : ""}
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function reviewRequestFromUI(requestId, decision) {
+    google.script.run
+      .withSuccessHandler(function() {
+        clearCache();
+        showAdminRequests();
+      })
+      .withFailureHandler(function(error) {
+        alert("Error reviewing request: " + error.message);
+        console.error(error);
+      })
+      .reviewRequest(requestId, decision, currentUser.Email);
+  }
+
+  function showAdminRequests() {
+    setActiveMenu("menuAdminRequests");
+
+    const role = String(currentUser.Role || "")
+      .toLowerCase()
+      .trim();
+
+    document.getElementById("pageTitle").textContent =
+      role === "team_admin"
+        ? "Team Requests"
+        : "Requests";
+
+    document.getElementById("pageSubtitle").textContent =
+      role === "team_admin"
+        ? "Solicitudes de tu equipo."
+        : "Todas las solicitudes.";
+
+    document.getElementById("content").innerHTML = `
+      <div class="card">
+        <div class="request-tabs">
+          <button
+            id="activeRequestsTab"
+            class="request-tab active"
+            onclick="showActiveRequests()">
+            Active Requests
+          </button>
+
+          <button
+            id="requestHistoryTab"
+            class="request-tab"
+            onclick="showRequestHistory()">
+            Request History
+          </button>
+        </div>
+
+        <div id="adminRequestsTable">
+          Loading requests...
+        </div>
+      </div>
+    `;
+
+    if (appCache.adminRequests !== null) {
+      currentRequests = appCache.adminRequests;
+      currentRequestView = "active";
+      renderAdminRequestsView();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(requests) {
+
+        appCache.adminRequests = requests || [];
+
+        currentRequests = appCache.adminRequests;
+        currentRequestView = "active";
+
+        renderAdminRequestsView();
+
+      })
+      .withFailureHandler(function(error) {
+
+        document.getElementById("adminRequestsTable").innerHTML =
+          "Error loading requests: " + error.message;
+
+        console.error(error);
+
+      })
+      .getVisibleRequests(currentUser.Email);
+  }
+
+  function showActiveRequests() {
+    currentRequestView = "active";
+    renderAdminRequestsView();
+  }
+
+  function showRequestHistory() {
+    currentRequestView = "history";
+    renderAdminRequestsView();
+  }
+
+  function renderAdminRequestsView() {
+    const activeTab = document.getElementById("activeRequestsTab");
+    const historyTab = document.getElementById("requestHistoryTab");
+
+    if (activeTab && historyTab) {
+      activeTab.classList.toggle(
+        "active",
+        currentRequestView === "active"
+      );
+
+      historyTab.classList.toggle(
+        "active",
+        currentRequestView === "history"
+      );
+    }
+
+    const filteredRequests = currentRequests.filter(request => {
+      const status = String(request.Status || "")
+        .trim()
+        .toLowerCase();
+
+      if (currentRequestView === "active") {
+        return status === "pending";
+      }
+
+      return status === "approved" || status === "rejected";
+    });
+
+    renderRequestsTable(
+      filteredRequests,
+      "adminRequestsTable",
+      true,
+      currentRequestView === "active"
+    );
+  }
+
+  function openRequestForm(type) {
+    currentRequestType = type;
+    document.getElementById("requestModal").style.display = "block";
+
+    const title = document.getElementById("requestTitle");
+    const form = document.getElementById("requestForm");
+
+    const deviceOptions = DEVICE_TYPES.map(device =>
+      `<option value="${device}">${device}</option>`
+    ).join("");
+
+    if (type === "request_equipment") {
+      title.textContent = "Request Equipment";
+
+      form.innerHTML = `
+        <label>Device Type *</label>
+        <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+          ${deviceOptions}
+        </select>
+
+        <label style="display:block; margin-top:18px;">Quantity *</label>
+        <select id="requestQuantity" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+
+        <input id="requestComments" placeholder="Comments">
+      `;
+    }
+
+    if (type === "register_equipment") {
+      title.textContent = "Register Equipment";
+
+      form.innerHTML = `
+        <label>Device Type *</label>
+        <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+          ${deviceOptions}
+        </select>
+
+        <input id="requestBrand" placeholder="Brand">
+        <input id="requestModel" placeholder="Model">
+        <input id="requestSN" placeholder="Serial Number">
+        <input id="requestInternalSN" placeholder="Internal SN">
+        <input id="requestComments" placeholder="Comments">
+      `;
+    }
+
+    if (type === "damaged_equipment") {
+      title.textContent = "Report Damaged Equipment";
+
+      form.innerHTML = `
+        <label>Equipment *</label>
+        <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+          ${getMyEquipmentOptions()}
+        </select>
+
+        <input id="requestComments" placeholder="Comments">
+      `;
+    }
+
+    if (type === "return_equipment") {
+      title.textContent = "Return Equipment";
+
+      form.innerHTML = `
+        <label>Equipment *</label>
+        <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
+          ${getMyEquipmentOptions()}
+        </select>
+
+        <input id="requestComments" placeholder="Comments">
+      `;
+    }
+  }
+
+  function getMyEquipmentOptions() {
+    if (!currentData || currentData.length === 0) {
+      return `<option value="">No equipment found</option>`;
+    }
+
+    return currentData.map(item => {
+      const device = item.Device || "";
+      const sn = item.SN || "";
+      const internalSN = item["Internal SN"] || "";
+
+      const label = `${device} | ${item.Brand || ""} ${item.Model || ""} | ${internalSN || sn || ""}`;
+      const brand = item.Brand || "";
+      const model = item.Model || "";
+
+      const value = `${device}||${brand}||${model}||${sn}||${internalSN}`;
+
+      return `<option value="${value}">${label}</option>`;
+    }).join("");
+  }
+
+  function submitRequest() {
+    let selectedDevice = document.getElementById("requestDevice")?.value || "";
+    let selectedBrand = "";
+    let selectedModel = "";
+    let selectedSN = "";
+    let selectedInternalSN = "";
+
+    if (selectedDevice.includes("||")) {
+      const parts = selectedDevice.split("||");
+
+      selectedDevice = parts[0] || "";
+      selectedBrand = parts[1] || "";
+      selectedModel = parts[2] || "";
+      selectedSN = parts[3] || "";
+      selectedInternalSN = parts[4] || "";
+    }
+
+    const request = {
+      Request_type: currentRequestType,
+      Requested_by: currentUser.Email,
+      Requested_name: currentUser.Name,
+      Team: currentUser.Team,
+      Device: selectedDevice,
+      Brand: selectedBrand || document.getElementById("requestBrand")?.value || "",
+      Model: selectedModel || document.getElementById("requestModel")?.value || "",
+      SN: selectedSN || document.getElementById("requestSN")?.value || "",
+      "Internal SN": selectedInternalSN || document.getElementById("requestInternalSN")?.value || "",
+      Quantity: document.getElementById("requestQuantity")?.value || 1,
+      Comments: document.getElementById("requestComments")?.value || ""
+    };
+
+    google.script.run
+      .withSuccessHandler(function() {
+        closeRequestForm();
+        clearCache();
+        document.getElementById("successModal").style.display = "flex";
+
+        setTimeout(function() {
+          document.getElementById("successModal").style.display = "none";
+        }, 1600);
+      })
+
+      .withFailureHandler(function(error) {
+        document.getElementById("requestForm").innerHTML = `<p style="color:#b91c1c; font-weight:bold;">Error submitting request: ${error.message}</p>`;
+        console.error(error);
+      })
+      .createRequest(request);
+  }
+
+  function closeRequestForm() {
+    document.getElementById("requestModal").style.display = "none";
+  }
+
+  function openAssignEquipment(requestId) {
+    const request = currentRequests.find(r =>
+      String(r.Request_id || "").trim() === String(requestId || "").trim()
+    );
+
+    if (!request) {
+      alert("Request not found.");
+      return;
+    }
+
+    currentAssignRequest = request;
+    const modal = document.getElementById("assignModal");
+    const content = document.getElementById("assignModalContent");
+
+    modal.style.display = "flex";
+    content.innerHTML = `<p>Loading available equipment...</p>`;
+
+    google.script.run
+      .withSuccessHandler(function(assets) {
+        const availableAssets = assets || [];
+        currentAvailableAssets = availableAssets;
+
+        if (availableAssets.length === 0) {
+          content.innerHTML = `
+            <div class="assign-count">0 available</div>
+            <p>No available ${request.Device} equipment was found.</p>
+          `;
+          return;
+        }
+        const quantityNeeded = Number(request.Quantity || 1);
+
+        if (availableAssets.length < quantityNeeded) {
+          content.innerHTML = `
+            <div class="assign-count">
+              ${availableAssets.length} available
+            </div>
+
+            <p style="color:#b91c1c; font-weight:bold;">
+              This request needs ${quantityNeeded} equipment(s), but only
+              ${availableAssets.length} are available.
+            </p>
+          `;
+          return;
+        }
+
+        content.innerHTML = `
+          <div class="assign-count">
+            ${availableAssets.length} available
+          </div>
+
+          <p>
+            Select exactly
+            <strong>${quantityNeeded}</strong>
+            equipment(s) to assign to:
+            <strong>${request.Requested_name}</strong>
+          </p>
+
+          <div class="available-assets-list">
+            ${availableAssets.map((asset, index) => {
+              const identifier =
+                asset["Internal SN"] ||
+                asset.SN ||
+                "No identifier";
+
+              return `
+                <label class="available-asset-option">
+                  <input
+                    type="checkbox"
+                    class="selected-asset-checkbox"
+                    value="${index}">
+
+                  <div>
+                    <strong>${asset.Device || ""}</strong><br>
+                    <span>
+                      ${asset.Brand || ""} ${asset.Model || ""}
+                    </span><br>
+                    <small>${identifier}</small>
+                  </div>
+                </label>
+              `;
+            }).join("")}
+          </div>
+
+          <button class="button" style="margin-top:18px;"
+            onclick="confirmAssetSelection()">
+            Assign ${quantityNeeded} Equipment
+          </button>
+        `;
+      })
+      .withFailureHandler(function(error) {
+        content.innerHTML = `
+          <p style="color:#b91c1c;">
+            ${error.message}
+          </p>
+        `;
+      })
+      .getAvailableAssetsByDevice(request.Device);
+  }
+
+  function closeAssignModal() {
+    document.getElementById("assignModal").style.display = "none";
+  }
+
+  function confirmAssetSelection() {
+    const quantityNeeded = Number(
+      currentAssignRequest.Quantity || 1
+    );
+
+    const selectedInputs = Array.from(
+      document.querySelectorAll(
+        ".selected-asset-checkbox:checked"
+      )
+    );
+
+    if (selectedInputs.length !== quantityNeeded) {
+      alert(
+        "Please select exactly " +
+        quantityNeeded +
+        " equipment(s)."
+      );
+      return;
+    }
+
+    const selectedAssets = selectedInputs.map(input =>
+      currentAvailableAssets[Number(input.value)]
+    );
+
+    const content = document.getElementById(
+      "assignModalContent"
+    );
+
+    content.innerHTML = `
+      <p>Assigning ${selectedAssets.length} equipment(s)...</p>
+    `;
+
+    assignAssetsOneByOne(selectedAssets, 0);
+  }
+
+  function assignAssetsOneByOne(selectedAssets, currentIndex) {
+    if (currentIndex >= selectedAssets.length) {
+      approveRequestAfterAssignment();
+      return;
+    }
+
+    const asset = selectedAssets[currentIndex];
+
+    google.script.run
+      .withSuccessHandler(function() {
+        assignAssetsOneByOne(
+          selectedAssets,
+          currentIndex + 1
+        );
+      })
+      .withFailureHandler(function(error) {
+        alert(
+          "Error assigning equipment " +
+          (currentIndex + 1) +
+          ": " +
+          error.message
+        );
+
+        console.error(error);
+      })
+      .assignSelectedAssetToUser(
+        asset,
+        currentAssignRequest.Requested_name,
+        currentAssignRequest.Team
+      );
+  }
+
+  function approveRequestAfterAssignment() {
+    google.script.run
+      .withSuccessHandler(function() {
+        clearCache();
+        closeAssignModal();
+
+        document.getElementById(
+          "successModal"
+        ).style.display = "flex";
+
+        setTimeout(function() {
+          document.getElementById(
+            "successModal"
+          ).style.display = "none";
+        }, 1600);
+
+        showAdminRequests();
+      })
+      .withFailureHandler(function(error) {
+        alert(
+          "The equipment was assigned, but the request " +
+          "could not be approved: " +
+          error.message
+        );
+
+        console.error(error);
+      })
+      .approveAssignedRequest(
+        currentAssignRequest.Request_id,
+        currentUser.Email
+      );
+  }
+
+  function openRequestDetails(requestId) {
+    const request = currentRequests.find(item =>
+      String(item.Request_id || "").trim() ===
+      String(requestId || "").trim()
+    );
+
+    if (!request) {
+      alert("Request not found.");
+      return;
+    }
+
+    const modal = document.getElementById("requestDetailsModal");
+    const content = document.getElementById("requestDetailsContent");
+
+    content.innerHTML = `
+      <div style="display:grid; grid-template-columns:140px 1fr; gap:12px 18px;">
+        <strong>Request ID</strong>
+        <span>${request.Request_id || ""}</span>
+
+        <strong>Type</strong>
+        <span>${request.Request_type || ""}</span>
+
+        <strong>Requested By</strong>
+        <span>${request.Requested_name || ""}</span>
+
+        <strong>Team</strong>
+        <span>${request.Team || ""}</span>
+
+        <strong>Status</strong>
+        <span>${request.Status || ""}</span>
+
+        <strong>Device</strong>
+        <span>${request.Device || ""}</span>
+
+        <strong>Brand</strong>
+        <span>${request.Brand || ""}</span>
+
+        <strong>Model</strong>
+        <span>${request.Model || ""}</span>
+
+        <strong>SN</strong>
+        <span>${request.SN || ""}</span>
+
+        <strong>Internal SN</strong>
+        <span>${request["Internal SN"] || ""}</span>
+
+        <strong>Quantity</strong>
+        <span>${request.Quantity || ""}</span>
+
+        <strong>Created</strong>
+        <span>${request.Created_at || ""}</span>
+
+        <strong>Reviewed By</strong>
+        <span>${request.Reviewed_by || ""}</span>
+
+        <strong>Reviewed At</strong>
+        <span>${request.Reviewed_at || ""}</span>
+
+        <strong>Comments</strong>
+        <span>${request.Comments || ""}</span>
+      </div>
+    `;
+
+    modal.style.display = "flex";
+  }
+
+  function closeRequestDetails() {
+    document.getElementById("requestDetailsModal").style.display = "none";
+  }
+</script>

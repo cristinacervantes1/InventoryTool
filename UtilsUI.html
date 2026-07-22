@@ -1,0 +1,64 @@
+<script>
+  function getUserInitials(name) {
+    const parts = String(name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (parts.length === 0) {
+      return "?";
+    }
+
+    if (parts.length === 1) {
+      return parts[0].charAt(0).toUpperCase();
+    }
+
+    return (
+      parts[0].charAt(0) +
+      parts[parts.length - 1].charAt(0)
+    ).toUpperCase();
+  }
+
+  function formatRequestType(requestType) {
+    return String(requestType || "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, letter => letter.toUpperCase());
+  }
+
+  function formatUserRole(role) {
+    const normalizedRole = String(role || "")
+      .trim()
+      .toLowerCase();
+
+    const roleLabels = {
+      user: "User",
+      team_admin: "Team Admin",
+      system_admin: "System Admin"
+    };
+
+    return roleLabels[normalizedRole] || role || "User";
+  }
+
+  function getDeviceIcon(device) {
+    const normalizedDevice = String(device || "")
+      .trim()
+      .toLowerCase();
+
+    const icons = {
+      "laptop": "💻",
+      "ge laptop": "💻",
+      "pc": "🖥️",
+      "monitor": "🖥️",
+      "dock": "🔌",
+      "mouse": "🖱️",
+      "keyboard": "⌨️",
+      "headset": "🎧",
+      "webcam": "📷",
+      "yubikey": "🔑",
+      "lock cable": "🔒",
+      "ups (no break)": "🔋"
+    };
+
+    return icons[normalizedDevice] || "⚙️";
+  }
+</script>
