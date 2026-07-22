@@ -126,9 +126,17 @@
           ${requests.map(request => `
             <tr>
               <td>${request.Request_id || ""}</td>
-              <td>${request.Request_type || ""}</td>
+              <td>
+                <span class="badge request-type-badge request-type-${String(request.Request_type || "").toLowerCase()}">
+                  ${formatRequestType(request.Request_type)}
+                </span>
+              </td>
               ${showRequestedBy ? `<td>${request.Requested_name || ""}</td>` : ""}
-              <td><span class="badge assigned">${request.Status || ""}</span></td>
+              <td>
+                <span class="badge request-status-badge request-status-${String(request.Status || "").toLowerCase()}">
+                  ${request.Status || ""}
+                </span>
+              </td>
               <td>${request.Device || ""}</td>
               <td>${request.Quantity || ""}</td>
               <td>${request.Created_at || ""}</td>
@@ -231,6 +239,38 @@
           </button>
         </div>
 
+        <div class="request-filters">
+
+          <input
+            id="requestSearch"
+            type="text"
+            placeholder="Search requests..."
+            oninput="filterVisibleRequests()">
+
+          <select
+            id="requestTypeFilter"
+            onchange="filterVisibleRequests()">
+
+            <option value="">All Types</option>
+            <option value="request_equipment">Request Equipment</option>
+            <option value="register_equipment">Register Equipment</option>
+            <option value="damaged_equipment">Damaged Equipment</option>
+            <option value="return_equipment">Return Equipment</option>
+
+          </select>
+
+          <select
+            id="requestStatusFilter"
+            onchange="filterVisibleRequests()">
+
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+
+          </select>
+
+        </div>
         <div id="adminRequestsTable">
           Loading requests...
         </div>
@@ -309,6 +349,70 @@
       "adminRequestsTable",
       true,
       currentRequestView === "active"
+    );
+  }
+
+  function filterVisibleRequests() {
+    const search =
+        document.getElementById("requestSearch").value
+        .toLowerCase()
+        .trim();
+    const type =
+        document.getElementById("requestTypeFilter").value
+        .toLowerCase();
+    const statusFilter =
+        document.getElementById("requestStatusFilter").value
+        .toLowerCase();
+    const filtered = currentRequests.filter(request => {
+        const status = String(request.Status || "")
+            .trim()
+            .toLowerCase();
+        if (
+            currentRequestView === "active" &&
+            status !== "pending"
+        ) {
+            return false;
+        }
+        if (
+            currentRequestView === "history" &&
+            status !== "approved" &&
+            status !== "rejected"
+        ) {
+            return false;
+        }
+        const text = [
+            request.Request_id,
+            request.Request_type,
+            request.Requested_name,
+            request.Device,
+            request.Brand,
+            request.Model,
+            request.SN,
+            request.Comments
+        ]
+        .join(" ")
+        .toLowerCase();
+        if (search && !text.includes(search))
+            return false;
+        if (
+            type &&
+            request.Request_type.toLowerCase() !== type
+        )
+            return false;
+        if (
+            statusFilter &&
+            status !== statusFilter
+        )
+            return false;
+
+        return true;
+
+    });
+    renderRequestsTable(
+        filtered,
+        "adminRequestsTable",
+        true,
+        currentRequestView === "active"
     );
   }
 
@@ -731,5 +835,56 @@
 
   function closeRequestDetails() {
     document.getElementById("requestDetailsModal").style.display = "none";
+  }
+
+  function filterRequests(requests, searchText, typeFilter, statusFilter) {
+    const search = String(searchText || "")
+      .trim()
+      .toLowerCase();
+
+    const type = String(typeFilter || "")
+      .trim()
+      .toLowerCase();
+
+    const status = String(statusFilter || "")
+      .trim()
+      .toLowerCase();
+
+    return requests.filter(request => {
+      const requestType = String(request.Request_type || "")
+        .trim()
+        .toLowerCase();
+
+      const requestStatus = String(request.Status || "")
+        .trim()
+        .toLowerCase();
+
+      const searchableText = [
+        request.Request_id,
+        request.Request_type,
+        request.Requested_name,
+        request.Requested_by,
+        request.Status,
+        request.Device,
+        request.Brand,
+        request.Model,
+        request.SN,
+        request.Comments,
+        request.Created
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch =
+        !search || searchableText.includes(search);
+
+      const matchesType =
+        !type || requestType === type;
+
+      const matchesStatus =
+        !status || requestStatus === status;
+
+      return matchesSearch && matchesType && matchesStatus;
+    });
   }
 </script>
