@@ -1,0 +1,393 @@
+<div id="addUserModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title">
+        Add User
+      </div>
+
+      <button
+        class="assign-close"
+        onclick="closeAddUserModal()">
+        ✕
+      </button>
+    </div>
+
+    <div>
+      <label style="font-weight:600;">
+        Name *
+      </label>
+
+      <input
+        type="text"
+        id="newUserName"
+        placeholder="Full name"
+        autocomplete="off">
+
+      <label
+        style="display:block; margin-top:18px; font-weight:600; ">
+        Email *
+      </label>
+
+      <input
+        type="email"
+        id="newUserEmail"
+        placeholder="name@essigq.com"
+        autocomplete="off">
+
+      <label
+        style="display:block; margin-top:18px; font-weight:600; ">
+        Employee ID *
+      </label>
+
+      <input
+        type="text"
+        id="newEmployeeId"
+        placeholder="Employee ID"
+        autocomplete="off">
+
+      <label
+        style="display:block; margin-top:18px; font-weight:600; ">
+        Team *
+      </label>
+
+      <input
+        type="text"
+        id="newUserTeam"
+        placeholder="Team name"
+        autocomplete="off">
+
+      <label
+        style="display:block; margin-top:18px; font-weight:600; ">
+        Role *
+      </label>
+
+      <select
+        id="newUserRole"
+        style="width:100%; padding:12px; margin-top:10px; border:1px solid #d0d5dd; border-radius:10px; font-size:14px; background:white; box-sizing:border-box; ">
+        <option value="user">
+          User
+        </option>
+
+        <option value="team_admin">
+          Team Admin
+        </option>
+
+        <option value="system_admin">
+          System Admin
+        </option>
+      </select>
+
+      <div
+        id="addUserError"
+        style="display:none; margin-top:16px; padding:12px; border-radius:10px; background:#fee2e2; color:#b91c1c; font-size:14px; ">
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px; ">
+        <button
+          class="button"
+          style="background:#667085;"
+          onclick="closeAddUserModal()">
+          Cancel
+        </button>
+
+        <button
+          id="saveUserButton"
+          class="button"
+          onclick="submitNewUser()">
+          Add User
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="directAssignModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title">
+        Assign Equipment
+      </div>
+
+      <button
+        class="assign-close"
+        onclick="closeDirectAssignModal()">
+        ✕
+      </button>
+    </div>
+
+    <div id="directAssignContent"></div>
+  </div>
+</div>
+
+<div id="assignModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title">Assign Equipment</div>
+
+      <button class="assign-close" onclick="closeAssignModal()">
+        ✕
+      </button>
+    </div>
+
+    <div id="assignModalContent"></div>
+  </div>
+</div>
+
+<div id="teamEquipmentModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title" id="teamEquipmentTitle">
+        Assigned Equipment
+      </div>
+
+      <button
+        class="assign-close"
+        onclick="closeTeamEquipment()">
+        ✕
+      </button>
+    </div>
+
+    <div id="teamEquipmentContent"></div>
+  </div>
+</div>
+
+<div id="teamRequestsModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title" id="teamRequestsTitle">
+        Active Requests
+      </div>
+
+      <button
+        class="assign-close"
+        onclick="closeTeamRequests()">
+        ✕
+      </button>
+    </div>
+
+    <div id="teamRequestsContent"></div>
+  </div>
+</div>
+
+<div id="requestDetailsModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title">Request Details</div>
+
+      <button
+        class="assign-close"
+        onclick="closeRequestDetails()">
+        ✕
+      </button>
+    </div>
+
+    <div id="requestDetailsContent"></div>
+  </div>
+</div>
+
+<div id="requestModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:1000;">
+  <div class="card" style="max-width:560px; margin:80px auto;">
+    <h2 id="requestTitle">Request</h2>
+
+    <div id="requestForm"></div>
+
+    <br>
+    <button class="button" id="submitRequestButton" onclick="submitRequest()">Submit</button>
+    <button class="button" id="cancelRequestButton" style="background:#667085;" onclick="closeRequestForm()">Cancel</button>
+  </div>
+</div>
+
+<div id="deleteUserModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title">
+        Permanently Delete User
+      </div>
+
+      <button
+        class="assign-close"
+        onclick="closeDeleteUserModal()">
+        ✕
+      </button>
+    </div>
+
+    <div id="deleteUserContent">
+      Loading user information...
+    </div>
+
+    <div style="
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      margin-top:24px;
+    ">
+      <button
+        class="button"
+        style="background:#667085;"
+        onclick="closeDeleteUserModal()">
+        Cancel
+      </button>
+
+      <button
+        id="confirmDeleteUserButton"
+        class="button"
+        style="background:#dc2626;"
+        onclick="confirmDeleteUser()">
+        Delete User
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="editUserModal" class="assign-overlay">
+  <div class="assign-box">
+    <div class="assign-header">
+      <div class="assign-title">
+        Edit User
+      </div>
+
+      <button
+        class="assign-close"
+        onclick="closeEditUserModal()">
+        ✕
+      </button>
+    </div>
+
+    <label style="font-weight:600;">
+      Name *
+    </label>
+
+    <input
+      type="text"
+      id="editUserName"
+      placeholder="Full name"
+      autocomplete="off">
+
+    <label style="
+      display:block;
+      margin-top:18px;
+      font-weight:600;
+    ">
+      Email *
+    </label>
+
+    <input
+      type="email"
+      id="editUserEmail"
+      placeholder="name@essigq.com"
+      autocomplete="off">
+
+    <label style="
+      display:block;
+      margin-top:18px;
+      font-weight:600;
+    ">
+      Employee ID *
+    </label>
+
+    <input
+      type="text"
+      id="editEmployeeId"
+      placeholder="Employee ID"
+      autocomplete="off">
+
+    <label style="
+      display:block;
+      margin-top:18px;
+      font-weight:600;
+    ">
+      Team *
+    </label>
+
+    <input
+      type="text"
+      id="editUserTeam"
+      placeholder="Team name"
+      autocomplete="off">
+
+    <label style="
+      display:block;
+      margin-top:18px;
+      font-weight:600;
+    ">
+      Role *
+    </label>
+
+    <select
+      id="editUserRole"
+      style="
+        width:100%;
+        padding:12px;
+        margin-top:10px;
+        border:1px solid #d0d5dd;
+        border-radius:10px;
+        font-size:14px;
+        background:white;
+        box-sizing:border-box;
+      ">
+
+      <option value="user">
+        User
+      </option>
+
+      <option value="team_admin">
+        Team Admin
+      </option>
+
+      <option value="system_admin">
+        System Admin
+      </option>
+    </select>
+
+    <div
+      id="editUserError"
+      style="
+        display:none;
+        margin-top:16px;
+        padding:12px;
+        border-radius:10px;
+        background:#fee2e2;
+        color:#b91c1c;
+        font-size:14px;
+      ">
+    </div>
+
+    <div style="
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      margin-top:24px;
+    ">
+      <button
+        class="button"
+        style="background:#667085;"
+        onclick="closeEditUserModal()">
+        Cancel
+      </button>
+
+      <button
+        id="saveEditedUserButton"
+        class="button"
+        onclick="submitEditedUser()">
+        Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="successModal" class="notification-overlay">
+  <div class="notification-box">
+
+    <div class="notification-icon">
+      ✓
+    </div>
+
+    <div class="notification-title">
+      Request Submitted
+    </div>
+
+    <div class="notification-text">
+      Your request has been sent successfully.
+    </div>
+  </div>
+</div>
