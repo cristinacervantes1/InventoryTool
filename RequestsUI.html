@@ -271,6 +271,8 @@
           </select>
 
         </div>
+
+        <div id="requestResultsCount" class="request-results-count"></div>
         <div id="adminRequestsTable">
           Loading requests...
         </div>
@@ -331,25 +333,7 @@
         currentRequestView === "history"
       );
     }
-
-    const filteredRequests = currentRequests.filter(request => {
-      const status = String(request.Status || "")
-        .trim()
-        .toLowerCase();
-
-      if (currentRequestView === "active") {
-        return status === "pending";
-      }
-
-      return status === "approved" || status === "rejected";
-    });
-
-    renderRequestsTable(
-      filteredRequests,
-      "adminRequestsTable",
-      true,
-      currentRequestView === "active"
-    );
+    filterVisibleRequests();
   }
 
   function filterVisibleRequests() {
@@ -362,24 +346,29 @@
         .toLowerCase();
     const statusFilter =
         document.getElementById("requestStatusFilter").value
-        .toLowerCase();
+        .toLowerCase();        
     const filtered = currentRequests.filter(request => {
         const status = String(request.Status || "")
             .trim()
             .toLowerCase();
+
+        // Primero filtra por la pestaña
         if (
             currentRequestView === "active" &&
             status !== "pending"
-        ) {
+        ){
             return false;
         }
+
         if (
             currentRequestView === "history" &&
             status !== "approved" &&
             status !== "rejected"
-        ) {
+        ){
             return false;
         }
+
+        // Luego aplica búsqueda
         const text = [
             request.Request_id,
             request.Request_type,
@@ -392,22 +381,31 @@
         ]
         .join(" ")
         .toLowerCase();
+
         if (search && !text.includes(search))
             return false;
+
         if (
             type &&
-            request.Request_type.toLowerCase() !== type
+            String(request.Request_type || "").toLowerCase() !== type
         )
             return false;
+
         if (
             statusFilter &&
             status !== statusFilter
         )
             return false;
-
         return true;
-
     });
+
+    const countElement = document.getElementById("requestResultsCount");
+
+    if (countElement) {
+      countElement.textContent =
+        `Showing ${filtered.length} of ${currentRequests.length} requests`;
+    }
+
     renderRequestsTable(
         filtered,
         "adminRequestsTable",

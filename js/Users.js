@@ -14,7 +14,7 @@ function getUserByEmail(email) {
   });
 
   return users.find(user =>
-    String(user.Email).toLowerCase().trim() === String(email).toLowerCase().trim()
+    normalize(user.Email) === normalize(email)
   ) || null;
 }
 
@@ -39,8 +39,8 @@ function getVisibleUsers(email) {
   if (!currentUser) return [];
 
   const users = getUsers();
-  const role = String(currentUser.Role || "").trim().toLowerCase();
-  const team = String(currentUser.Team || "").trim().toLowerCase();
+  const role = normalize(currentUser.Role);
+  const team = normalize(currentUser.Team);
 
   if (role === "system_admin") {
     return users;
@@ -48,7 +48,7 @@ function getVisibleUsers(email) {
 
   if (role === "team_admin") {
     return users.filter(user =>
-      String(user.Team || "").trim().toLowerCase() === team
+      normalize(user.Team) === team
     );
   }
 
@@ -62,9 +62,7 @@ function createUser(userData, createdByEmail) {
     throw new Error("The current user was not found.");
   }
 
-  const currentRole = String(currentUser.Role || "")
-    .trim()
-    .toLowerCase();
+  const currentRole = normalize(currentUser.Role);
 
   if (currentRole !== "system_admin") {
     throw new Error(
@@ -74,9 +72,7 @@ function createUser(userData, createdByEmail) {
 
   const name = String(userData.Name || "").trim();
 
-  const email = String(userData.Email || "")
-    .trim()
-    .toLowerCase();
+  const email = normalize(userData.Email);
 
   const employeeId = String(
     userData["ID"] || ""
@@ -84,9 +80,7 @@ function createUser(userData, createdByEmail) {
 
   const team = String(userData.Team || "").trim();
 
-  const role = String(userData.Role || "")
-    .trim()
-    .toLowerCase();
+  const role = normalize(userData.Role);
 
   if (!name) {
     throw new Error("Name is required.");
@@ -116,10 +110,18 @@ function createUser(userData, createdByEmail) {
 
   const users = getUsers();
 
+  const existingName = users.find(user =>
+    normalize(user.Name) === normalize(name)
+  );
+
+  if (existingName) {
+    throw new Error(
+      "A user with this name already exists."
+    );
+  }
+
   const existingEmail = users.find(user =>
-    String(user.Email || "")
-      .trim()
-      .toLowerCase() === email
+    normalize(user.Email) === normalize(email)
   );
 
   if (existingEmail) {
@@ -129,10 +131,7 @@ function createUser(userData, createdByEmail) {
   }
 
   const existingEmployeeId = users.find(user =>
-    String(user["ID"] || "")
-      .trim()
-      .toLowerCase() ===
-    employeeId.toLowerCase()
+    normalize(user["ID"]) === normalize(employeeId)
   );
 
   if (existingEmployeeId) {
@@ -201,9 +200,7 @@ function getUserDeletionPreview(userEmail, adminEmail) {
     throw new Error("The current user was not found.");
   }
 
-  const adminRole = String(admin.Role || "")
-    .trim()
-    .toLowerCase();
+  const adminRole = normalize(admin.Role);
 
   if (adminRole !== "system_admin") {
     throw new Error(
@@ -217,13 +214,9 @@ function getUserDeletionPreview(userEmail, adminEmail) {
     throw new Error("The user was not found.");
   }
 
-  const normalizedTargetEmail = String(user.Email || "")
-    .trim()
-    .toLowerCase();
+  const normalizedTargetEmail = normalize(user.Email);
 
-  const normalizedAdminEmail = String(admin.Email || "")
-    .trim()
-    .toLowerCase();
+  const normalizedAdminEmail = normalize(admin.Email);
 
   if (normalizedTargetEmail === normalizedAdminEmail) {
     throw new Error(
@@ -233,13 +226,10 @@ function getUserDeletionPreview(userEmail, adminEmail) {
 
   const users = getUsers();
 
+  const normalizedName = normalize(user.Name);
+
   const sameNameUsers = users.filter(existingUser =>
-    String(existingUser.Name || "")
-      .trim()
-      .toLowerCase() ===
-    String(user.Name || "")
-      .trim()
-      .toLowerCase()
+    normalize(existingUser.Name) === normalizedName
   );
 
   if (sameNameUsers.length > 1) {
@@ -250,15 +240,11 @@ function getUserDeletionPreview(userEmail, adminEmail) {
 
   const assets = getAssets();
 
-  const normalizedUserName = String(user.Name || "")
-    .trim()
-    .toLowerCase();
+  const normalizedUserName = normalize(user.Name);
 
   const assignedAssets = assets
     .filter(asset =>
-      String(asset.Assignee || "")
-        .trim()
-        .toLowerCase() === normalizedUserName
+      normalize(asset.Assignee) === normalizedUserName
     )
     .map(asset => ({
       Device: asset.Device || "",
@@ -283,9 +269,7 @@ function deleteUserAndReleaseAssets(userEmail, adminEmail) {
       throw new Error("The current user was not found.");
     }
 
-    const adminRole = String(admin.Role || "")
-      .trim()
-      .toLowerCase();
+    const adminRole = normalize(admin.Role);
 
     if (adminRole !== "system_admin") {
       throw new Error(
@@ -299,13 +283,9 @@ function deleteUserAndReleaseAssets(userEmail, adminEmail) {
       throw new Error("The user was not found.");
     }
 
-    const normalizedTargetEmail = String(user.Email || "")
-      .trim()
-      .toLowerCase();
+    const normalizedTargetEmail = normalize(user.Email);
 
-    const normalizedAdminEmail = String(admin.Email || "")
-      .trim()
-      .toLowerCase();
+    const normalizedAdminEmail = normalize(admin.Email);
 
     if (normalizedTargetEmail === normalizedAdminEmail) {
       throw new Error(
@@ -315,13 +295,10 @@ function deleteUserAndReleaseAssets(userEmail, adminEmail) {
 
     const users = getUsers();
 
+    const normalizedName = normalize(user.Name);
+
     const sameNameUsers = users.filter(existingUser =>
-      String(existingUser.Name || "")
-        .trim()
-        .toLowerCase() ===
-      String(user.Name || "")
-        .trim()
-        .toLowerCase()
+      normalize(existingUser.Name) === normalizedName
     );
 
     if (sameNameUsers.length > 1) {
@@ -330,15 +307,11 @@ function deleteUserAndReleaseAssets(userEmail, adminEmail) {
       );
     }
 
-    const targetRole = String(user.Role || "")
-      .trim()
-      .toLowerCase();
+    const targetRole = normalize(user.Role);
 
     if (targetRole === "system_admin") {
       const systemAdmins = users.filter(existingUser =>
-        String(existingUser.Role || "")
-          .trim()
-          .toLowerCase() === "system_admin"
+        normalize(existingUser.Role) === "system_admin"
       );
 
       if (systemAdmins.length <= 1) {
@@ -375,9 +348,7 @@ function deleteUserAndReleaseAssets(userEmail, adminEmail) {
     const matchingRows = [];
 
     for (let i = 1; i < data.length; i++) {
-      const rowEmail = String(data[i][emailCol] || "")
-        .trim()
-        .toLowerCase();
+      const rowEmail = normalize(data[i][emailCol]);
 
       if (rowEmail === normalizedTargetEmail) {
         matchingRows.push(i + 1);
@@ -424,9 +395,7 @@ function updateUser(originalEmail, userData, updatedByEmail) {
       throw new Error("The current user was not found.");
     }
 
-    const currentRole = String(currentAdmin.Role || "")
-      .trim()
-      .toLowerCase();
+    const currentRole = normalize(currentAdmin.Role);
 
     if (currentRole !== "system_admin") {
       throw new Error(
@@ -443,15 +412,11 @@ function updateUser(originalEmail, userData, updatedByEmail) {
     const employeeId = String(userData.ID || "").trim();
     const name = String(userData.Name || "").trim();
 
-    const email = String(userData.Email || "")
-      .trim()
-      .toLowerCase();
+    const email = normalize(userData.Email);
 
     const team = String(userData.Team || "").trim();
 
-    const role = String(userData.Role || "")
-      .trim()
-      .toLowerCase();
+    const role = normalize(userData.Role);
 
     if (!employeeId || !name || !email || !team || !role) {
       throw new Error("Complete all required fields.");
@@ -473,18 +438,24 @@ function updateUser(originalEmail, userData, updatedByEmail) {
 
     const users = getUsers();
 
-    const normalizedOriginalEmail =
-      String(originalEmail || "")
-        .trim()
-        .toLowerCase();
+    const normalizedName = normalize(name);
+    const normalizedEmployeeId = normalize(employeeId);
+    const normalizedOriginalEmail = normalize(originalEmail);
+
+    const duplicateName = users.find(user =>
+      normalize(user.Name) === normalizedName &&
+      normalize(user.Email) !== normalizedOriginalEmail
+    );
+
+    if (duplicateName) {
+      throw new Error(
+        "A user with this name already exists."
+      );
+    }
 
     const duplicateEmail = users.find(user =>
-      String(user.Email || "")
-        .trim()
-        .toLowerCase() === email &&
-      String(user.Email || "")
-        .trim()
-        .toLowerCase() !== normalizedOriginalEmail
+      normalize(user.Email) === email &&
+      normalize(user.Email) !== normalizedOriginalEmail
     );
 
     if (duplicateEmail) {
@@ -494,12 +465,8 @@ function updateUser(originalEmail, userData, updatedByEmail) {
     }
 
     const duplicateEmployeeId = users.find(user =>
-      String(user.ID || "")
-        .trim()
-        .toLowerCase() === employeeId.toLowerCase() &&
-      String(user.Email || "")
-        .trim()
-        .toLowerCase() !== normalizedOriginalEmail
+      normalize(user.ID) === normalizedEmployeeId &&
+      normalize(user.Email) !== normalizedOriginalEmail
     );
 
     if (duplicateEmployeeId) {
@@ -508,18 +475,14 @@ function updateUser(originalEmail, userData, updatedByEmail) {
       );
     }
 
-    const oldRole = String(existingUser.Role || "")
-      .trim()
-      .toLowerCase();
+    const oldRole = normalize(existingUser.Role);
 
     if (
       oldRole === "system_admin" &&
       role !== "system_admin"
     ) {
       const systemAdmins = users.filter(user =>
-        String(user.Role || "")
-          .trim()
-          .toLowerCase() === "system_admin"
+        normalize(user.Role) === "system_admin"
       );
 
       if (systemAdmins.length <= 1) {
@@ -564,9 +527,7 @@ function updateUser(originalEmail, userData, updatedByEmail) {
     let matchingRow = -1;
 
     for (let i = 1; i < data.length; i++) {
-      const rowEmail = String(data[i][emailCol] || "")
-        .trim()
-        .toLowerCase();
+      const rowEmail = normalize(data[i][emailCol]);
 
       if (rowEmail === normalizedOriginalEmail) {
         matchingRow = i + 1;
@@ -579,9 +540,7 @@ function updateUser(originalEmail, userData, updatedByEmail) {
     }
 
     const oldName = String(existingUser.Name || "").trim();
-    const oldEmail = String(existingUser.Email || "")
-      .trim()
-      .toLowerCase();
+    const oldEmail = normalize(existingUser.Email);
 
     sheet.getRange(matchingRow, idCol + 1)
       .setValue(employeeId);
@@ -633,13 +592,8 @@ function updateUserReferences(
   const spreadsheet =
     SpreadsheetApp.getActiveSpreadsheet();
 
-  const normalizedOldName = String(oldName || "")
-    .trim()
-    .toLowerCase();
-
-  const normalizedOldEmail = String(oldEmail || "")
-    .trim()
-    .toLowerCase();
+  const normalizedOldName = normalize(oldName);
+  const normalizedOldEmail = normalize(oldEmail);
 
   const assetsSheet =
     spreadsheet.getSheetByName("Assets");
@@ -661,11 +615,9 @@ function updateUserReferences(
 
       if (assigneeCol !== -1) {
         for (let i = 1; i < assetData.length; i++) {
-          const assignee = String(
-            assetData[i][assigneeCol] || ""
-          )
-            .trim()
-            .toLowerCase();
+          const assignee = normalize(
+            assetData[i][assigneeCol]
+          );
 
           if (assignee === normalizedOldName) {
             assetsSheet
@@ -706,11 +658,9 @@ function updateUserReferences(
 
       for (let i = 1; i < requestData.length; i++) {
         if (requestedByCol !== -1) {
-          const requestedBy = String(
-            requestData[i][requestedByCol] || ""
-          )
-            .trim()
-            .toLowerCase();
+          const requestedBy = normalize(
+            requestData[i][requestedByCol]
+          );
 
           if (requestedBy === normalizedOldEmail) {
             requestsSheet
@@ -720,11 +670,9 @@ function updateUserReferences(
         }
 
         if (requestedNameCol !== -1) {
-          const requestedName = String(
-            requestData[i][requestedNameCol] || ""
-          )
-            .trim()
-            .toLowerCase();
+          const requestedName = normalize(
+            requestData[i][requestedNameCol]
+          );
 
           if (requestedName === normalizedOldName) {
             requestsSheet

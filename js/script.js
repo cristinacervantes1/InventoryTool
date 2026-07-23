@@ -13,3 +13,9 @@ function include(filename) {
     .createHtmlOutputFromFile(filename)
     .getContent();
 }
+
+function normalize(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
