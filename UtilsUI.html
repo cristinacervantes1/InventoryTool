@@ -1,4 +1,10 @@
 <script>
+  function normalize(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase();
+  }
+
   function getUserInitials(name) {
     const parts = String(name || "")
       .trim()
@@ -26,9 +32,7 @@
   }
 
   function formatUserRole(role) {
-    const normalizedRole = String(role || "")
-      .trim()
-      .toLowerCase();
+    const normalizedRole = normalize(role);
 
     const roleLabels = {
       user: "User",
@@ -40,9 +44,7 @@
   }
 
   function getDeviceIcon(device) {
-    const normalizedDevice = String(device || "")
-      .trim()
-      .toLowerCase();
+    const normalizedDevice = normalize(device);
 
     const icons = {
       "laptop": "💻",

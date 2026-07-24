@@ -140,24 +140,18 @@
 
     const cards = users.map(user => {
       const userName = String(user.Name || "").trim();
-      const normalizedUserName = userName.toLowerCase();
+      const normalizedUserName = normalize(userName);
 
       const userAssets = inventory.filter(asset =>
-        String(asset.Assignee || "")
-          .trim()
-          .toLowerCase() === normalizedUserName
+        normalize(asset.Assignee) === normalizedUserName
       );
 
       const userRequests = requests.filter(request =>
-        String(request.Requested_name || "")
-          .trim()
-          .toLowerCase() === normalizedUserName
+        normalize(request.Requested_name) === normalizedUserName
       );
 
       const pendingRequests = userRequests.filter(request =>
-        String(request.Status || "")
-          .trim()
-          .toLowerCase() === "pending"
+        normalize(request.Status) === "pending"
       );
 
       const initials = getUserInitials(userName);
@@ -294,9 +288,7 @@
       return;
     }
 
-    const search = String(input.value || "")
-      .trim()
-      .toLowerCase();
+    const search = normalize(input.value);
 
     document
       .querySelectorAll(".system-user-card")
@@ -507,9 +499,7 @@
 
   //EDIT USER
   function openEditUserModal(userEmail) {
-    const role = String(currentUser?.Role || "")
-      .trim()
-      .toLowerCase();
+    const role = normalize(currentUser?.Role);
 
     if (role !== "system_admin") {
       alert("Only a System Admin can edit users.");
@@ -519,12 +509,8 @@
     const users = appCache.users || [];
 
     const user = users.find(item =>
-      String(item.Email || "")
-        .trim()
-        .toLowerCase() ===
-      String(userEmail || "")
-        .trim()
-        .toLowerCase()
+      normalize(item.Email) ===
+      normalize(userEmail)
     );
 
     if (!user) {
@@ -547,9 +533,7 @@
       user.Team || "";
 
     document.getElementById("editUserRole").value =
-      String(user.Role || "user")
-        .trim()
-        .toLowerCase();
+      normalize(user.Role || "user");
 
     const errorBox =
       document.getElementById("editUserError");
@@ -1050,24 +1034,18 @@
 
     const cards = users.map(user => {
       const userName = String(user.Name || "").trim();
-      const normalizedUserName = userName.toLowerCase();
+      const normalizedUserName = normalize(userName);
 
       const userAssets = inventory.filter(asset =>
-        String(asset.Assignee || "")
-          .trim()
-          .toLowerCase() === normalizedUserName
+        normalize(asset.Assignee) === normalizedUserName
       );
 
       const userRequests = requests.filter(request =>
-        String(request.Requested_name || "")
-          .trim()
-          .toLowerCase() === normalizedUserName
+        normalize(request.Requested_name) === normalizedUserName
       );
 
       const pendingRequests = userRequests.filter(request =>
-        String(request.Status || "")
-          .trim()
-          .toLowerCase() === "pending"
+        normalize(request.Status) === "pending"
       );
 
       const initials = getUserInitials(userName);
@@ -1138,12 +1116,8 @@
     const inventory = appCache.adminInventory || [];
 
     const selectedUser = users.find(user =>
-      String(user.Email || "")
-        .trim()
-        .toLowerCase() ===
-      String(userEmail || "")
-        .trim()
-        .toLowerCase()
+      normalize(user.Email) ===
+      normalize(userEmail)
     );
 
     if (!selectedUser) {
@@ -1151,14 +1125,10 @@
       return;
     }
 
-    const userName = String(selectedUser.Name || "")
-      .trim()
-      .toLowerCase();
+    const userName = normalize(selectedUser.Name);
 
     const userAssets = inventory.filter(asset =>
-      String(asset.Assignee || "")
-        .trim()
-        .toLowerCase() === userName
+      normalize(asset.Assignee) === userName
     );
 
     const modal = document.getElementById("teamEquipmentModal");
@@ -1231,14 +1201,10 @@
     const users = appCache.users || [];
     const requests = appCache.adminRequests || [];
 
-    const normalizedEmail = String(userEmail || "")
-      .trim()
-      .toLowerCase();
+    const normalizedEmail = normalize(userEmail);
 
     const selectedUser = users.find(user =>
-      String(user.Email || "")
-        .trim()
-        .toLowerCase() === normalizedEmail
+      normalize(user.Email) === normalizedEmail
     );
 
     if (!selectedUser) {
@@ -1246,17 +1212,11 @@
       return;
     }
 
-    const userName = String(selectedUser.Name || "")
-      .trim()
-      .toLowerCase();
+    const userName = normalize(selectedUser.Name);
 
     const pendingRequests = requests.filter(request =>
-      String(request.Requested_name || "")
-        .trim()
-        .toLowerCase() === userName &&
-      String(request.Status || "")
-        .trim()
-        .toLowerCase() === "pending"
+      normalize(request.Requested_name) === userName &&
+      normalize(request.Status) === "pending"
     );
 
     const modal = document.getElementById("teamRequestsModal");

@@ -63,7 +63,7 @@
         // Reset admin menu every login
         document.getElementById("adminMenu").style.display = "none";
 
-        const role = String(user.Role || "").toLowerCase().trim();
+        const role = normalize(user.Role);
 
         document.getElementById("menuUsers").style.display = "none";
 

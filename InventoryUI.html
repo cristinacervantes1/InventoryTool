@@ -47,7 +47,7 @@
   function showAdminInventory() {
     setActiveMenu("menuAdminInventory");
 
-    const role = String(currentUser.Role || "").toLowerCase().trim();
+    const role = normalize(currentUser.Role);
 
     if (role === "team_admin") {
       document.getElementById("pageTitle").textContent = "Team Inventory";
@@ -110,7 +110,7 @@
   }
 
   function openAdminInventory() {
-    const role = String(currentUser.Role || "").trim().toLowerCase();
+    const role = normalize(currentUser.Role);
 
     if (role === "team_admin") {
       showTeamInventory();
@@ -144,9 +144,7 @@
       const device =
         String(asset.Device || "Other").trim() || "Other";
 
-      const assignee = String(asset.Assignee || "")
-        .trim()
-        .toLowerCase();
+      const assignee = normalize(asset.Assignee);
 
       totalAssets += 1;
 
@@ -236,20 +234,14 @@
   }
 
   function filterInventoryByDevice(device) {
-    const normalizedDevice = String(device || "")
-      .trim()
-      .toLowerCase();
+    const normalizedDevice = normalize(device);
 
     const fullInventory = appCache.adminInventory || [];
 
     const filteredData = fullInventory.filter(asset => {
-      const assetDevice = String(asset.Device || "")
-        .trim()
-        .toLowerCase();
+      const assetDevice = normalize(asset.Device);
 
-      const assignee = String(asset.Assignee || "")
-        .trim()
-        .toLowerCase();
+      const assignee = normalize(asset.Assignee);
 
       return (
         assetDevice === normalizedDevice &&
@@ -349,10 +341,10 @@
     const searchInput = document.getElementById("searchInput");
     if (!searchInput) return;
 
-    const search = searchInput.value.toLowerCase();
+    const search = normalize(searchInput.value);
 
     const filtered = currentData.filter(item =>
-      Object.values(item).some(value => String(value).toLowerCase().includes(search))
+      Object.values(item).some(value => normalize(value).includes(search))
     );
 
     renderTable(filtered);
@@ -520,14 +512,12 @@
       return;
     }
 
-    const search = String(input.value || "")
-      .trim()
-      .toLowerCase();
+    const search = normalize(input.value);
 
     const filteredUsers = availableUsers.filter(user => {
-      const name = String(user.Name || "").toLowerCase();
-      const email = String(user.Email || "").toLowerCase();
-      const team = String(user.Team || "").toLowerCase();
+      const name = normalize(user.Name);
+      const email = normalize(user.Email);
+      const team = normalize(user.Team);
 
       return (
         name.includes(search) ||

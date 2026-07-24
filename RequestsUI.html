@@ -80,9 +80,7 @@
     }
 
     const filteredRequests = requests.filter(request => {
-      const status = String(request.Status || "")
-        .trim()
-        .toLowerCase();
+      const status = normalize(request.Status);
 
       if (currentMyRequestView === "active") {
         return status === "pending";
@@ -207,9 +205,7 @@
   function showAdminRequests() {
     setActiveMenu("menuAdminRequests");
 
-    const role = String(currentUser.Role || "")
-      .toLowerCase()
-      .trim();
+    const role = normalize(currentUser.Role);
 
     document.getElementById("pageTitle").textContent =
       role === "team_admin"
@@ -337,20 +333,17 @@
   }
 
   function filterVisibleRequests() {
-    const search =
+    const search = normalize(
         document.getElementById("requestSearch").value
-        .toLowerCase()
-        .trim();
-    const type =
+    );
+    const type = normalize(
         document.getElementById("requestTypeFilter").value
-        .toLowerCase();
-    const statusFilter =
+    );
+    const statusFilter = normalize(
         document.getElementById("requestStatusFilter").value
-        .toLowerCase();        
+    );       
     const filtered = currentRequests.filter(request => {
-        const status = String(request.Status || "")
-            .trim()
-            .toLowerCase();
+        const status = normalize(request.Status);
 
         // Primero filtra por la pestaña
         if (
@@ -833,56 +826,5 @@
 
   function closeRequestDetails() {
     document.getElementById("requestDetailsModal").style.display = "none";
-  }
-
-  function filterRequests(requests, searchText, typeFilter, statusFilter) {
-    const search = String(searchText || "")
-      .trim()
-      .toLowerCase();
-
-    const type = String(typeFilter || "")
-      .trim()
-      .toLowerCase();
-
-    const status = String(statusFilter || "")
-      .trim()
-      .toLowerCase();
-
-    return requests.filter(request => {
-      const requestType = String(request.Request_type || "")
-        .trim()
-        .toLowerCase();
-
-      const requestStatus = String(request.Status || "")
-        .trim()
-        .toLowerCase();
-
-      const searchableText = [
-        request.Request_id,
-        request.Request_type,
-        request.Requested_name,
-        request.Requested_by,
-        request.Status,
-        request.Device,
-        request.Brand,
-        request.Model,
-        request.SN,
-        request.Comments,
-        request.Created
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      const matchesSearch =
-        !search || searchableText.includes(search);
-
-      const matchesType =
-        !type || requestType === type;
-
-      const matchesStatus =
-        !status || requestStatus === status;
-
-      return matchesSearch && matchesType && matchesStatus;
-    });
   }
 </script>
