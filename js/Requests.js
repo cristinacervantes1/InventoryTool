@@ -1,48 +1,70 @@
 function createRequest(request) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Requests");
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
 
-  const lastRow = sheet.getLastRow();
-  let highestNumber = 0;
+  try {
+    const sheet = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName("Requests");
 
-  if (lastRow >= 2) {
-    const existingIds = sheet
-      .getRange(2, 1, lastRow - 1, 1)
-      .getDisplayValues()
-      .flat();
+    const lastRow = sheet.getLastRow();
+    let highestNumber = 0;
 
-    existingIds.forEach(id => {
-      const match = String(id || "").trim().match(/^REQ-(\d+)$/i);
+    if (lastRow >= 2) {
+      const existingIds = sheet
+        .getRange(2, 1, lastRow - 1, 1)
+        .getDisplayValues()
+        .flat();
 
-      if (match) {
-        highestNumber = Math.max(highestNumber, Number(match[1]));
-      }
-    });
+      existingIds.forEach(id => {
+        const match = String(id || "")
+          .trim()
+          .match(/^REQ-(\d+)$/i);
+
+        if (match) {
+          highestNumber = Math.max(
+            highestNumber,
+            Number(match[1])
+          );
+        }
+      });
+    }
+
+    const nextNumber = highestNumber + 1;
+
+    const requestId =
+      "REQ-" +
+      String(nextNumber).padStart(6, "0");
+
+    sheet.appendRow([
+      requestId,
+      request.Request_type || "",
+      request.Requested_by || "",
+      request.Requested_name || "",
+      request.Team || "",
+      "pending",
+      request.Device || "",
+      request.Brand || "",
+      request.Model || "",
+      request.SN || "",
+      request["Internal SN"] || "",
+      request.Quantity || 1,
+      Utilities.formatDate(
+        new Date(),
+        Session.getScriptTimeZone(),
+        "yyyy-MM-dd HH:mm"
+      ),
+      "",
+      "",
+      request.Comments || ""
+    ]);
+
+    SpreadsheetApp.flush();
+
+    return {success: true, request_id: requestId};
+  } finally {
+    lock.releaseLock();
   }
-
-  const nextNumber = highestNumber + 1;
-  const requestId = "REQ-" + String(nextNumber).padStart(6, "0");
-
-  sheet.appendRow([
-    requestId,
-    request.Request_type || "",
-    request.Requested_by || "",
-    request.Requested_name || "",
-    request.Team || "",
-    "pending",
-    request.Device || "",
-    request.Brand || "",
-    request.Model || "",
-    request.SN || "",
-    request["Internal SN"] || "",
-    request.Quantity || 1,
-    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm"), "", "",
-    request.Comments || ""
-  ]);
-
-  return {
-    success: true,
-    request_id: requestId
-  };
 }
 
 function getRequests() {
@@ -79,12 +101,12 @@ function getMyRequests(email) {
 
   const requests = getRequests();
 
-  const userEmail = String(currentUser.Email || "").trim().toLowerCase();
-  const userName = String(currentUser.Name || "").trim().toLowerCase();
+  const userEmail = normalize(currentUser.Email);
+  const userName = normalize(currentUser.Name);
 
   return requests.filter(request => {
-    const requestedBy = String(request.Requested_by || "").trim().toLowerCase();
-    const requestedName = String(request.Requested_name || "").trim().toLowerCase();
+    const requestedBy = normalize(request.Requested_by);
+    const requestedName = normalize(request.Requested_name);
 
     return requestedBy === userEmail || requestedName === userName;
   });
@@ -95,8 +117,8 @@ function getVisibleRequests(email) {
   if (!currentUser) return [];
 
   const requests = getRequests();
-  const role = String(currentUser.Role || "").trim().toLowerCase();
-  const team = String(currentUser.Team || "").trim().toLowerCase();
+  const role = normalize(currentUser.Role);
+  const team = normalize(currentUser.Team);
 
   if (role === "system_admin") {
     return requests;
@@ -104,7 +126,7 @@ function getVisibleRequests(email) {
 
   if (role === "team_admin") {
     return requests.filter(request =>
-      String(request.Team || "").trim().toLowerCase() === team
+      normalize(request.Team) === team
     );
   }
 
@@ -116,7 +138,15 @@ function reviewRequest(requestId, decision, reviewedByEmail) {
   const sheet = ss.getSheetByName("Requests");
   const data = sheet.getDataRange().getValues();
 
-  const status = decision === "approve" ? "approved" : "rejected";
+  if (
+    decision !== "approve" &&
+    decision !== "reject"
+  ) {
+    throw new Error("Invalid review decision.");
+  }
+  const status = decision === "approve"
+      ? "approved"
+      : "rejected";
   const reviewedAt = Utilities.formatDate(
     new Date(),
     Session.getScriptTimeZone(),
@@ -150,6 +180,13 @@ function reviewRequest(requestId, decision, reviewedByEmail) {
     const rowRequestId = String(data[i][0] || "").trim();
 
     if (rowRequestId === String(requestId).trim()) {
+      const currentStatus = normalize(data[i][5]);
+
+      if (currentStatus !== "pending") {
+        throw new Error(
+          "This request has already been reviewed."
+        );
+      }
       const requestType = String(data[i][1] || "").trim();
 
       if (decision === "approve") {

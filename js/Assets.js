@@ -19,10 +19,10 @@ function getMyInventory(email) {
   if (!user) return [];
 
   const assets = getAssets();
-  const userName = String(user.Name || "").trim().toLowerCase();
+  const userName = normalize(user.Name);
 
   return assets.filter(asset =>
-    String(asset.Assignee || "").trim().toLowerCase() === userName
+    normalize(asset.Assignee) === userName
   );
 }
 
@@ -30,17 +30,17 @@ function getTeamInventory(email) {
   const user = getUserByEmail(email);
   if (!user) return [];
 
-  const role = String(user.Role || "").trim().toLowerCase();
+  const role = normalize(user.Role);
 
   if (role !== "team_admin" && role !== "system_admin") {
     return [];
   }
 
   const assets = getAssets();
-  const team = String(user.Team || "").trim().toLowerCase();
+  const team = normalize(user.Team);
 
   return assets.filter(asset =>
-    String(asset.Team || "").trim().toLowerCase() === team
+    normalize(asset.Team) === team
   );
 }
 
@@ -48,7 +48,7 @@ function getAllInventory(email) {
   const user = getUserByEmail(email);
   if (!user) return [];
 
-  const role = String(user.Role || "").trim().toLowerCase();
+  const role = normalize(user.Role);
 
   if (role !== "system_admin") {
     return [];
@@ -73,36 +73,17 @@ function updateAssetAssignee(requestRow, newAssignee) {
   const assigneeCol = headers.indexOf("Assignee");
   const teamCol = headers.indexOf("Team");
 
-  const requestOwner = String(requestRow[3] || "")
-    .trim()
-    .toLowerCase();
-
-  const requestDevice = String(requestRow[6] || "")
-    .trim()
-    .toLowerCase();
-
-  const requestBrand = String(requestRow[7] || "")
-    .trim()
-    .toLowerCase();
-
-  const requestModel = String(requestRow[8] || "")
-    .trim()
-    .toLowerCase();
-
-  const requestSN = String(requestRow[9] || "")
-    .trim()
-    .toLowerCase();
-
-  const requestInternalSN = String(requestRow[10] || "")
-    .trim()
-    .toLowerCase();
+  const requestOwner = normalize(requestRow[3]);
+  const requestDevice = normalize(requestRow[6]);
+  const requestBrand = normalize(requestRow[7]);
+  const requestModel = normalize(requestRow[8]);
+  const requestSN = normalize(requestRow[9]);
+  const requestInternalSN = normalize(requestRow[10]);
 
   const ownerAssets = [];
 
   for (let i = 1; i < data.length; i++) {
-    const assetAssignee = String(data[i][assigneeCol] || "")
-      .trim()
-      .toLowerCase();
+    const assetAssignee = normalize(data[i][assigneeCol]);
 
     if (assetAssignee !== requestOwner) {
       continue;
@@ -110,11 +91,11 @@ function updateAssetAssignee(requestRow, newAssignee) {
 
     ownerAssets.push({
       rowIndex: i,
-      device: String(data[i][deviceCol] || "").trim().toLowerCase(),
-      brand: String(data[i][brandCol] || "").trim().toLowerCase(),
-      model: String(data[i][modelCol] || "").trim().toLowerCase(),
-      sn: String(data[i][snCol] || "").trim().toLowerCase(),
-      internalSN: String(data[i][internalSnCol] || "").trim().toLowerCase()
+      device: normalize(data[i][deviceCol]),
+      brand: normalize(data[i][brandCol]),
+      model: normalize(data[i][modelCol]),
+      sn: normalize(data[i][snCol]),
+      internalSN: normalize(data[i][internalSnCol])
     });
   }
 
@@ -170,9 +151,7 @@ function updateAssetAssignee(requestRow, newAssignee) {
       .getRange(rowNumber, assigneeCol + 1)
       .setValue(newAssignee);
 
-    const normalizedNewAssignee = String(newAssignee || "")
-      .trim()
-      .toLowerCase();
+    const normalizedNewAssignee = normalize(newAssignee);
 
     if (
       normalizedNewAssignee === "available" ||
@@ -232,40 +211,64 @@ function registerEquipmentFromRequest(requestRow) {
 
   let matches = [];
 
+  const normalizedDevice = normalize(device);
+  const normalizedBrand = normalize(brand);
+  const normalizedModel = normalize(model);
+  const normalizedSN = normalize(sn);
+  const normalizedInternalSN = normalize(internalSN);
+
   for (let i = 1; i < data.length; i++) {
-    const assetDevice = String(data[i][deviceCol] || "").trim().toLowerCase();
-    const assetBrand = String(data[i][brandCol] || "").trim().toLowerCase();
-    const assetModel = String(data[i][modelCol] || "").trim().toLowerCase();
-    const assetSN = String(data[i][snCol] || "").trim().toLowerCase();
-    const assetInternalSN = String(data[i][internalSnCol] || "").trim().toLowerCase();
+    const assetDevice = normalize(data[i][deviceCol]);
+    const assetBrand = normalize(data[i][brandCol]);
+    const assetModel = normalize(data[i][modelCol]);
+    const assetSN = normalize(data[i][snCol]);
+    const assetInternalSN = normalize(data[i][internalSnCol]);
 
-    if (internalSN && assetInternalSN === internalSN.toLowerCase()) {
-      matches.push(i);
-      continue;
-    }
-
-    if (sn && assetSN === sn.toLowerCase()) {
+    if (
+      normalizedInternalSN &&
+      assetInternalSN === normalizedInternalSN
+    ) {
       matches.push(i);
       continue;
     }
 
     if (
-      !sn &&
-      !internalSN &&
-      device &&
-      brand &&
-      model &&
-      assetDevice === device.toLowerCase() &&
-      assetBrand === brand.toLowerCase() &&
-      assetModel === model.toLowerCase()
+      normalizedSN &&
+      assetSN === normalizedSN
+    ) {
+      matches.push(i);
+      continue;
+    }
+
+    if (
+      !normalizedSN &&
+      !normalizedInternalSN &&
+      normalizedDevice &&
+      normalizedBrand &&
+      normalizedModel &&
+      assetDevice === normalizedDevice &&
+      assetBrand === normalizedBrand &&
+      assetModel === normalizedModel
     ) {
       matches.push(i);
     }
   }
 
   if (matches.length === 1) {
-    sheet.getRange(matches[0] + 1, assigneeCol + 1).setValue(requestedName);
-    return;
+
+      const rowNumber = matches[0] + 1;
+
+      sheet
+        .getRange(rowNumber, assigneeCol + 1)
+        .setValue(requestedName);
+
+      sheet
+        .getRange(rowNumber, teamCol + 1)
+        .setValue(team);
+
+      SpreadsheetApp.flush();
+
+      return;
   }
 
   if (matches.length > 1) {
@@ -308,11 +311,11 @@ function registerEquipmentFromRequest(requestRow) {
 function getAvailableAssetsByDevice(device) {
   const assets = getAssets();
 
-  const requestedDevice = String(device || "").trim().toLowerCase();
+  const requestedDevice = normalize(device);
 
   return assets.filter(asset =>
-    String(asset.Device || "").trim().toLowerCase() === requestedDevice &&
-    String(asset.Assignee || "").trim().toLowerCase() === "available"
+    normalize(asset.Device) === requestedDevice &&
+    normalize(asset.Assignee) === "available"
   );
 }
 
@@ -332,27 +335,21 @@ function assignSelectedAssetToUser(assetData, requestedName, requestedTeam) {
   const internalSnCol = headers.indexOf("Internal SN");
   const assigneeCol = headers.indexOf("Assignee");
 
-  const device = String(assetData.Device || "").trim().toLowerCase();
-  const brand = String(assetData.Brand || "").trim().toLowerCase();
-  const model = String(assetData.Model || "").trim().toLowerCase();
-  const sn = String(assetData.SN || "").trim().toLowerCase();
-  const internalSN = String(
-    assetData["Internal SN"] || ""
-  ).trim().toLowerCase();
+  const device = normalize(assetData.Device);
+  const brand = normalize(assetData.Brand);
+  const model = normalize(assetData.Model);
+  const sn = normalize(assetData.SN);
+  const internalSN = normalize(assetData["Internal SN"]);
 
   const matches = [];
 
   for (let i = 1; i < data.length; i++) {
-    const assetDevice = String(data[i][deviceCol] || "").trim().toLowerCase();
-    const assetBrand = String(data[i][brandCol] || "").trim().toLowerCase();
-    const assetModel = String(data[i][modelCol] || "").trim().toLowerCase();
-    const assetSN = String(data[i][snCol] || "").trim().toLowerCase();
-    const assetInternalSN = String(
-      data[i][internalSnCol] || ""
-    ).trim().toLowerCase();
-    const assetAssignee = String(
-      data[i][assigneeCol] || ""
-    ).trim().toLowerCase();
+    const assetDevice = normalize(data[i][deviceCol]);
+    const assetBrand = normalize(data[i][brandCol]);
+    const assetModel = normalize(data[i][modelCol]);
+    const assetSN = normalize(data[i][snCol]);
+    const assetInternalSN = normalize(data[i][internalSnCol]);
+    const assetAssignee = normalize(data[i][assigneeCol]);
 
     if (assetAssignee !== "available") {
       continue;
@@ -431,18 +428,14 @@ function releaseAllAssetsForUser(userName) {
     );
   }
 
-  const normalizedUserName = String(userName || "")
-    .trim()
-    .toLowerCase();
+  const normalizedUserName = normalize(userName);
 
   let releasedAssets = 0;
 
   for (let i = 1; i < data.length; i++) {
-    const currentAssignee = String(
-      data[i][assigneeCol] || ""
-    )
-      .trim()
-      .toLowerCase();
+    const currentAssignee = normalize(
+      data[i][assigneeCol]
+    );
 
     if (currentAssignee !== normalizedUserName) {
       continue;
