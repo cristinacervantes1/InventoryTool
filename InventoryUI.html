@@ -283,12 +283,19 @@
 
   function renderTable(data) {
     const tableArea = document.getElementById("tableArea");
-    if (!tableArea) return;
 
-    if (!data || data.length === 0) {
-      tableArea.innerHTML = `<p class="empty">No se encontraron equipos.</p>`;
+    if (!tableArea) {
       return;
     }
+
+    if (!data || data.length === 0) {
+      tableArea.innerHTML = `
+        <p class="empty">No se encontraron equipos.</p>
+      `;
+      return;
+    }
+
+    const isMyInventory = !inventoryAssignmentMode;
 
     tableArea.innerHTML = `
       <table>
@@ -300,15 +307,29 @@
             <th>SN</th>
             <th>Team</th>
             <th>Internal SN</th>
-            <th>Assignee</th>
-            <th>Labeled</th>
-            ${inventoryAssignmentMode ? '<th style="width:70px;">Assign</th>' : ""}
+
+            ${
+              isMyInventory
+                ? '<th style="width:70px; text-align:center;">Actions</th>'
+                : `
+                  <th>Assignee</th>
+                  <th>Labeled</th>
+                  <th style="width:70px;">Assign</th>
+                `
+            }
           </tr>
         </thead>
+
         <tbody>
           ${data.map(item => {
-            const assignee = item.Assignee || "Available";
-            const badgeClass = assignee === "Available" ? "available" : "assigned";
+            const assignee =
+              item.Assignee || "Available";
+
+            const badgeClass =
+              normalize(assignee) === "available"
+                ? "available"
+                : "assigned";
+
             return `
               <tr>
                 <td>${item.Device || ""}</td>
@@ -317,18 +338,52 @@
                 <td>${item.SN || ""}</td>
                 <td>${item.Team || ""}</td>
                 <td>${item["Internal SN"] || ""}</td>
-                <td><span class="badge ${badgeClass}">${assignee}</span></td>
-                <td>${item.Labeled || ""}</td>
-                ${inventoryAssignmentMode ? `
-                  <td>
-                    <button
-                      class="assign-user-button"
-                      title="Assign Equipment"
-                      onclick='openDirectAssignModal(${JSON.stringify(item)})'>
-                      👤⁺
-                    </button>
-                  </td>
-                ` : ""}
+
+                ${
+                  isMyInventory
+                    ? `
+                      <td style="text-align:center;">
+                        <button
+                          class="user-card-icon-btn edit-asset-icon"
+                          title="Request Asset Update"
+                          aria-label="Request Asset Update"
+                          onclick='openEditAssetRequest(${JSON.stringify(item)})'>
+
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2">
+
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M16.862 3.487a2.1 2.1 0 113 2.97L8.25 18.07 4 19l.93-4.25L16.862 3.487z">
+                            </path>
+                          </svg>
+                        </button>
+                      </td>
+                    `
+                    : `
+                      <td>
+                        <span class="badge ${badgeClass}">
+                          ${assignee}
+                        </span>
+                      </td>
+
+                      <td>${item.Labeled || ""}</td>
+
+                      <td>
+                        <button
+                          class="assign-user-button"
+                          title="Assign Equipment"
+                          onclick='openDirectAssignModal(${JSON.stringify(item)})'>
+                          👤⁺
+                        </button>
+                      </td>
+                    `
+                }
               </tr>
             `;
           }).join("")}
@@ -593,5 +648,200 @@
         selectedDirectAssignUser.Name,
         selectedDirectAssignUser.Team
       );
+  }
+
+  let currentEditingAsset = null;
+
+  function openEditAssetRequest(asset) {
+
+    currentEditingAsset = asset;
+
+    const modal = document.getElementById("editAssetModal");
+    const content = document.getElementById("editAssetContent");
+
+    content.innerHTML = `
+      <label>Device</label>
+      <input id="editAssetDevice"
+        value="${asset.Device || ""}">
+
+      <label style="margin-top:16px; display:block;">
+        Brand
+      </label>
+      <input id="editAssetBrand"
+        value="${asset.Brand || ""}">
+
+      <label style="margin-top:16px; display:block;">
+        Model
+      </label>
+      <input id="editAssetModel"
+        value="${asset.Model || ""}">
+
+      <label style="margin-top:16px; display:block;">
+        Serial Number
+      </label>
+      <input id="editAssetSN"
+        value="${asset.SN || ""}">
+
+      <label style="margin-top:16px; display:block;">
+        Internal SN
+      </label>
+      <input id="editAssetInternalSN"
+        value="${asset["Internal SN"] || ""}">
+
+      <label style="margin-top:16px; display:block;">
+        Reason
+      </label>
+
+      <textarea
+        id="editAssetReason"
+        style="
+          display:block;
+          width:100%;
+          height:90px;
+          margin:8px 0 0 0;
+          border:1px solid #d0d5dd;
+          border-radius:10px;
+          padding:12px;
+          box-sizing:border-box;
+          font-family:Arial, sans-serif;
+          font-size:14px;
+          line-height:1.4;
+          color:#172033;
+          background:#ffffff;
+          resize:vertical;
+          outline:none;
+        "
+        placeholder="Explain why this update is needed"></textarea>
+
+      <div style="
+        display:flex;
+        justify-content:flex-end;
+        gap:10px;
+        margin-top:24px;
+      ">
+
+        <button
+          type="button"
+          class="button"
+          style="background:#667085;"
+          onclick="closeEditAssetModal()">
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          id="submitEditAssetButton"
+          class="button"
+          onclick="submitEditAssetRequest()">
+          Submit Request
+        </button>
+      </div>
+    `;
+
+    modal.style.display = "flex";
+  }
+
+  function closeEditAssetModal() {
+    document.getElementById("editAssetModal").style.display = "none";
+    currentEditingAsset = null;
+  }
+
+  function submitEditAssetRequest() {
+    console.log("submitEditAssetRequest called");
+
+    if (!currentEditingAsset) {
+      alert("No asset selected.");
+      return;
+    }
+
+    const reasonInput = document.getElementById("editAssetReason");
+    const submitButton = document.getElementById("submitEditAssetButton");
+
+    if (!reasonInput) {
+      alert("Reason field was not found.");
+      return;
+    }
+
+    const reason = reasonInput.value.trim();
+
+    if (!reason) {
+      alert("Please enter a reason for this update.");
+      return;
+    }
+
+    const updatedAsset = {
+      Device: document.getElementById("editAssetDevice").value.trim(),
+      Brand: document.getElementById("editAssetBrand").value.trim(),
+      Model: document.getElementById("editAssetModel").value.trim(),
+      SN: document.getElementById("editAssetSN").value.trim(),
+      "Internal SN": document
+        .getElementById("editAssetInternalSN")
+        .value
+        .trim()
+    };
+
+    const request = {
+      Request_type: "edit_equipment",
+      Requested_by: currentUser.Email || "",
+      Requested_name: currentUser.Name || "",
+      Team: currentUser.Team || "",
+
+      Device: currentEditingAsset.Device || "",
+      Brand: currentEditingAsset.Brand || "",
+      Model: currentEditingAsset.Model || "",
+      SN: currentEditingAsset.SN || "",
+      "Internal SN": currentEditingAsset["Internal SN"] || "",
+
+      Quantity: 1,
+
+      Comments: JSON.stringify({
+        reason: reason,
+        updated: updatedAsset
+      })
+    };
+
+    console.log("Request to send:", request);
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Submitting...";
+      submitButton.style.opacity = "0.6";
+      submitButton.style.cursor = "not-allowed";
+    }
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        console.log("Request created:", response);
+
+        closeEditAssetModal();
+        clearCache();
+
+        const successModal = document.getElementById("successModal");
+
+        if (successModal) {
+          successModal.style.display = "flex";
+
+          setTimeout(function() {
+            successModal.style.display = "none";
+          }, 1600);
+        }
+      })
+      .withFailureHandler(function(error) {
+        const message =
+          error && error.message
+            ? error.message
+            : String(error);
+
+        alert("Error submitting request: " + message);
+        console.error("createRequest failed:", error);
+
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = "Submit Request";
+          submitButton.style.opacity = "1";
+          submitButton.style.cursor = "pointer";
+        }
+      })
+      .createRequest(request);
   }
 </script>

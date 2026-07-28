@@ -201,6 +201,10 @@ function reviewRequest(requestId, decision, reviewedByEmail) {
         if (requestType === "register_equipment") {
           registerEquipmentFromRequest(data[i]);
         }
+
+        if (requestType === "edit_equipment") {
+          updateAssetInformation(data[i]);
+        }
       }
       
       sheet.getRange(i + 1, 6).setValue(status);
@@ -216,6 +220,281 @@ function reviewRequest(requestId, decision, reviewedByEmail) {
   }
 
   throw new Error("Request not found: " + requestId);
+}
+
+function updateAssetInformation(requestRow) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const assetsSheet = ss.getSheetByName("Assets");
+
+  if (!assetsSheet) {
+    throw new Error('The "Assets" sheet was not found.');
+  }
+
+  const range = assetsSheet.getDataRange();
+  const values = range.getValues();
+  const displayValues = range.getDisplayValues();
+
+  if (values.length < 2) {
+    throw new Error("No assets were found.");
+  }
+
+  const headers = displayValues[0].map(header =>
+    String(header || "").trim()
+  );
+
+  function getColumnIndex(headerName) {
+    const index = headers.indexOf(headerName);
+
+    if (index === -1) {
+      throw new Error(
+        'The "' + headerName + '" column was not found in Assets.'
+      );
+    }
+
+    return index;
+  }
+
+  const columns = {
+    Device: getColumnIndex("Device"),
+    Brand: getColumnIndex("Brand"),
+    Model: getColumnIndex("Model"),
+    SN: getColumnIndex("SN"),
+    InternalSN: getColumnIndex("Internal SN")
+  };
+
+  /*
+   * Original values stored in the Requests row.
+   *
+   * 6  = Device
+   * 7  = Brand
+   * 8  = Model
+   * 9  = SN
+   * 10 = Internal SN
+   * 15 = Comments
+   */
+  const original = {
+    Device: String(requestRow[6] || "").trim(),
+    Brand: String(requestRow[7] || "").trim(),
+    Model: String(requestRow[8] || "").trim(),
+    SN: String(requestRow[9] || "").trim(),
+    "Internal SN": String(requestRow[10] || "").trim()
+  };
+
+  let commentsData;
+
+  try {
+    commentsData = JSON.parse(
+      String(requestRow[15] || "{}")
+    );
+  } catch (error) {
+    throw new Error(
+      "The edit request contains invalid JSON in Comments."
+    );
+  }
+
+  const updated = commentsData.updated;
+
+  if (
+    !updated ||
+    typeof updated !== "object" ||
+    Array.isArray(updated)
+  ) {
+    throw new Error(
+      "The edit request does not contain updated asset information."
+    );
+  }
+
+  const assetRows = displayValues.slice(1).map(
+    (row, index) => ({
+      row: row,
+      sheetRow: index + 2
+    })
+  );
+
+  function isSame(valueA, valueB) {
+    return normalize(valueA) === normalize(valueB);
+  }
+
+  function findUniqueAsset(predicate, searchDescription) {
+    const matches = assetRows.filter(asset =>
+      predicate(asset.row)
+    );
+
+    if (matches.length > 1) {
+      throw new Error(
+        "Multiple assets matched using " +
+        searchDescription +
+        ". The request cannot be approved safely."
+      );
+    }
+
+    return matches.length === 1
+      ? matches[0]
+      : null;
+  }
+
+  let assetMatch = null;
+
+  /*
+   * Priority 1:
+   * Internal SN + Device
+   */
+  if (
+    original["Internal SN"] &&
+    original.Device
+  ) {
+    assetMatch = findUniqueAsset(
+      row =>
+        isSame(
+          row[columns.InternalSN],
+          original["Internal SN"]
+        ) &&
+        isSame(
+          row[columns.Device],
+          original.Device
+        ),
+      "Internal SN and Device"
+    );
+  }
+
+  /*
+   * Priority 2:
+   * SN + Device
+   */
+  if (
+    !assetMatch &&
+    original.SN &&
+    original.Device
+  ) {
+    assetMatch = findUniqueAsset(
+      row =>
+        isSame(
+          row[columns.SN],
+          original.SN
+        ) &&
+        isSame(
+          row[columns.Device],
+          original.Device
+        ),
+      "SN and Device"
+    );
+  }
+
+  /*
+   * Priority 3:
+   * Device + Brand + Model
+   */
+  if (
+    !assetMatch &&
+    original.Device &&
+    original.Brand &&
+    original.Model
+  ) {
+    assetMatch = findUniqueAsset(
+      row =>
+        isSame(
+          row[columns.Device],
+          original.Device
+        ) &&
+        isSame(
+          row[columns.Brand],
+          original.Brand
+        ) &&
+        isSame(
+          row[columns.Model],
+          original.Model
+        ),
+      "Device, Brand and Model"
+    );
+  }
+
+  /*
+   * Priority 4:
+   * Device only
+   */
+  if (
+    !assetMatch &&
+    original.Device
+  ) {
+    assetMatch = findUniqueAsset(
+      row =>
+        isSame(
+          row[columns.Device],
+          original.Device
+        ),
+      "Device"
+    );
+  }
+
+  if (!assetMatch) {
+    throw new Error(
+      "The original asset could not be found. " +
+      "No information was updated."
+    );
+  }
+
+  const editableFields = [
+    {
+      requestKey: "Device",
+      assetColumn: columns.Device
+    },
+    {
+      requestKey: "Brand",
+      assetColumn: columns.Brand
+    },
+    {
+      requestKey: "Model",
+      assetColumn: columns.Model
+    },
+    {
+      requestKey: "SN",
+      assetColumn: columns.SN
+    },
+    {
+      requestKey: "Internal SN",
+      assetColumn: columns.InternalSN
+    }
+  ];
+
+  let fieldsUpdated = 0;
+
+  editableFields.forEach(field => {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        updated,
+        field.requestKey
+      )
+    ) {
+      const newValue =
+        updated[field.requestKey] === null ||
+        updated[field.requestKey] === undefined
+          ? ""
+          : updated[field.requestKey];
+
+      assetsSheet
+        .getRange(
+          assetMatch.sheetRow,
+          field.assetColumn + 1
+        )
+        .setValue(newValue);
+
+      fieldsUpdated++;
+    }
+  });
+
+  if (fieldsUpdated === 0) {
+    throw new Error(
+      "The request does not contain any editable asset fields."
+    );
+  }
+
+  SpreadsheetApp.flush();
+
+  return {
+    success: true,
+    asset_row: assetMatch.sheetRow,
+    fields_updated: fieldsUpdated
+  };
 }
 
 function approveAssignedRequest(requestId, reviewedByEmail) {

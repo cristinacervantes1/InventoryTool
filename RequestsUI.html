@@ -97,6 +97,22 @@
     );
   }
 
+  function getRequestCommentDisplay(request) {
+    const comments = request.Comments || "";
+
+    if (normalize(request.Request_type) !== "edit_equipment") {
+      return comments;
+    }
+
+    try {
+      const data = JSON.parse(comments);
+      return data.reason || "";
+    } catch (error) {
+      console.error("Invalid edit request comments:", error);
+      return comments;
+    }
+  }
+
   function renderRequestsTable(requests, containerId, showRequestedBy, showActions) {
     const container = document.getElementById(containerId);
 
@@ -138,13 +154,13 @@
               <td>${request.Device || ""}</td>
               <td>${request.Quantity || ""}</td>
               <td>${request.Created_at || ""}</td>
-              <td>${request.Comments || ""}</td>
+              <td>${getRequestCommentDisplay(request)}</td>
               ${showActions ? `
                 <td>
                   ${String(request.Status || "").toLowerCase() === "pending" ? `
                     <div class="action-buttons">
 
-                      ${request.Request_type === "register_equipment" ? `
+                      ${(request.Request_type === "register_equipment" || request.Request_type === "edit_equipment" ) ? `
                         <button
                           class="icon-btn btn-view"
                           title="View Details"
@@ -252,6 +268,7 @@
             <option value="register_equipment">Register Equipment</option>
             <option value="damaged_equipment">Damaged Equipment</option>
             <option value="return_equipment">Return Equipment</option>
+            <option value="edit_equipment">Edit Equipment</option>
 
           </select>
 
@@ -407,79 +424,338 @@
     );
   }
 
-  function openRequestForm(type) {
-    currentRequestType = type;
-    document.getElementById("requestModal").style.display = "block";
+  function openRequestDetails(requestId) {
+    const request = currentRequests.find(item =>
+      String(item.Request_id || "").trim() ===
+      String(requestId || "").trim()
+    );
 
-    const title = document.getElementById("requestTitle");
-    const form = document.getElementById("requestForm");
-
-    const deviceOptions = DEVICE_TYPES.map(device =>
-      `<option value="${device}">${device}</option>`
-    ).join("");
-
-    if (type === "request_equipment") {
-      title.textContent = "Request Equipment";
-
-      form.innerHTML = `
-        <label>Device Type *</label>
-        <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
-          ${deviceOptions}
-        </select>
-
-        <label style="display:block; margin-top:18px;">Quantity *</label>
-        <select id="requestQuantity" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-        </select>
-
-        <input id="requestComments" placeholder="Comments">
-      `;
+    if (!request) {
+      alert("Request not found.");
+      return;
     }
 
-    if (type === "register_equipment") {
-      title.textContent = "Register Equipment";
+    const modal = document.getElementById("requestDetailsModal");
+    const content = document.getElementById("requestDetailsContent");
 
-      form.innerHTML = `
-        <label>Device Type *</label>
-        <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
-          ${deviceOptions}
-        </select>
-
-        <input id="requestBrand" placeholder="Brand">
-        <input id="requestModel" placeholder="Model">
-        <input id="requestSN" placeholder="Serial Number">
-        <input id="requestInternalSN" placeholder="Internal SN">
-        <input id="requestComments" placeholder="Comments">
-      `;
+    if (!modal || !content) {
+      alert("Request details modal was not found.");
+      return;
     }
 
-    if (type === "damaged_equipment") {
-      title.textContent = "Report Damaged Equipment";
+    if (normalize(request.Request_type) === "edit_equipment") {
+      let editData = {
+        reason: "",
+        updated: {}
+      };
 
-      form.innerHTML = `
-        <label>Equipment *</label>
-        <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
-          ${getMyEquipmentOptions()}
-        </select>
+      try {
+        editData = JSON.parse(request.Comments || "{}");
+      } catch (error) {
+        console.error("Invalid edit request JSON:", error);
+      }
 
-        <input id="requestComments" placeholder="Comments">
+      const updated = editData.updated || {};
+
+      const fields = [
+        {
+          label: "Device",
+          current: request.Device || "",
+          requested: updated.Device || ""
+        },
+        {
+          label: "Brand",
+          current: request.Brand || "",
+          requested: updated.Brand || ""
+        },
+        {
+          label: "Model",
+          current: request.Model || "",
+          requested: updated.Model || ""
+        },
+        {
+          label: "Serial Number",
+          current: request.SN || "",
+          requested: updated.SN || ""
+        },
+        {
+          label: "Internal SN",
+          current: request["Internal SN"] || "",
+          requested: updated["Internal SN"] || ""
+        }
+      ];
+
+      const changedFields = fields.filter(field =>
+        String(field.current || "").trim() !==
+        String(field.requested || "").trim()
+      );
+
+      const changeCount = changedFields.length;
+
+      const assetIdentifier =
+        request["Internal SN"] ||
+        request.SN ||
+        "No identifier";
+
+      content.innerHTML = `
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:flex-start;
+          gap:20px;
+          margin-bottom:24px;
+        ">
+          <div>
+            <div style="
+              font-size:13px;
+              color:#667085;
+              margin-bottom:4px;
+            ">
+              Asset
+            </div>
+
+            <div style="
+              font-size:20px;
+              font-weight:700;
+              color:#101828;
+            ">
+              ${request.Device || "Asset"}
+            </div>
+
+            <div style="
+              margin-top:4px;
+              color:#475467;
+            ">
+              ${request.Brand || ""} ${request.Model || ""}
+            </div>
+
+            <div style="
+              margin-top:4px;
+              font-size:13px;
+              color:#667085;
+            ">
+              Identifier: ${assetIdentifier}
+            </div>
+          </div>
+
+          <span style="
+            padding:6px 10px;
+            border-radius:999px;
+            background:#fff7e6;
+            color:#b54708;
+            border:1px solid #fedf89;
+            font-size:13px;
+            font-weight:600;
+            text-transform:capitalize;
+          ">
+            ${request.Status || ""}
+          </span>
+        </div>
+
+        <div style="
+          display:grid;
+          grid-template-columns:140px 1fr;
+          gap:10px 18px;
+          padding:18px 0;
+          border-top:1px solid #eaecf0;
+          border-bottom:1px solid #eaecf0;
+          margin-bottom:24px;
+        ">
+          <strong>Request ID</strong>
+          <span>${request.Request_id || ""}</span>
+
+          <strong>Requested By</strong>
+          <span>${request.Requested_name || ""}</span>
+
+          <strong>Team</strong>
+          <span>${request.Team || ""}</span>
+
+          <strong>Created</strong>
+          <span>${request.Created_at || ""}</span>
+
+          <strong>Reason for Change</strong>
+          <span>${editData.reason || "No reason provided."}</span>
+        </div>
+
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin-bottom:12px;
+        ">
+          <h3 style="
+            margin:0;
+            color:#101828;
+          ">
+            Proposed Changes
+          </h3>
+
+          <span style="
+            font-size:13px;
+            color:#667085;
+          ">
+            ${changeCount}
+            field${changeCount !== 1 ? "s" : ""} modified
+          </span>
+        </div>
+
+        ${
+          changeCount === 0
+            ? `
+              <div style="
+                padding:16px;
+                border:1px solid #eaecf0;
+                border-radius:10px;
+                color:#667085;
+                text-align:center;
+              ">
+                No changes were requested.
+              </div>
+            `
+            : `
+              <div style="
+                border:1px solid #eaecf0;
+                border-radius:12px;
+                overflow:hidden;
+                width:100%;
+              ">
+                <div style="
+                  display:grid;
+                  grid-template-columns:32% 34% 34%;
+                  background:#f9fafb;
+                  border-bottom:1px solid #eaecf0;
+                ">
+                  <div style="
+                    padding:12px 16px;
+                    font-size:13px;
+                    font-weight:600;
+                    color:#475467;
+                  ">
+                    Field
+                  </div>
+
+                  <div style="
+                    padding:12px 16px;
+                    font-size:13px;
+                    font-weight:600;
+                    color:#475467;
+                  ">
+                    Current
+                  </div>
+
+                  <div style="
+                    padding:12px 16px;
+                    font-size:13px;
+                    font-weight:600;
+                    color:#475467;
+                  ">
+                    Proposed
+                  </div>
+                </div>
+
+                ${changedFields.map((field, index) => `
+                  <div style="
+                    display:grid;
+                    grid-template-columns:32% 34% 34%;
+                    ${index < changedFields.length - 1
+                      ? "border-bottom:1px solid #eaecf0;"
+                      : ""
+                    }
+                  ">
+                    <div style="
+                      padding:14px 16px;
+                      font-weight:600;
+                      color:#101828;
+                      overflow-wrap:anywhere;
+                      word-break:break-word;
+                    ">
+                      ${field.label}
+                    </div>
+
+                    <div style="
+                      padding:14px 16px;
+                      color:#475467;
+                      overflow-wrap:anywhere;
+                      word-break:break-word;
+                    ">
+                      ${field.current || "—"}
+                    </div>
+
+                    <div style="
+                      padding:14px 16px;
+                      color:#027a48;
+                      font-weight:600;
+                      background:#ecfdf3;
+                      overflow-wrap:anywhere;
+                      word-break:break-word;
+                    ">
+                      ${field.requested || "—"}
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            `
+        }
       `;
+
+      modal.style.display = "flex";
+      return;
     }
 
-    if (type === "return_equipment") {
-      title.textContent = "Return Equipment";
+    content.innerHTML = `
+      <div style="
+        display:grid;
+        grid-template-columns:140px 1fr;
+        gap:12px 18px;
+      ">
+        <strong>Request ID</strong>
+        <span>${request.Request_id || ""}</span>
 
-      form.innerHTML = `
-        <label>Equipment *</label>
-        <select id="requestDevice" style="width:100%; padding:12px; margin-top:8px; border:1px solid #d0d5dd; border-radius:10px;">
-          ${getMyEquipmentOptions()}
-        </select>
+        <strong>Type</strong>
+        <span>${formatRequestType(request.Request_type)}</span>
 
-        <input id="requestComments" placeholder="Comments">
-      `;
-    }
+        <strong>Requested By</strong>
+        <span>${request.Requested_name || ""}</span>
+
+        <strong>Team</strong>
+        <span>${request.Team || ""}</span>
+
+        <strong>Status</strong>
+        <span>${request.Status || ""}</span>
+
+        <strong>Device</strong>
+        <span>${request.Device || ""}</span>
+
+        <strong>Brand</strong>
+        <span>${request.Brand || ""}</span>
+
+        <strong>Model</strong>
+        <span>${request.Model || ""}</span>
+
+        <strong>SN</strong>
+        <span>${request.SN || ""}</span>
+
+        <strong>Internal SN</strong>
+        <span>${request["Internal SN"] || ""}</span>
+
+        <strong>Quantity</strong>
+        <span>${request.Quantity || ""}</span>
+
+        <strong>Created</strong>
+        <span>${request.Created_at || ""}</span>
+
+        <strong>Reviewed By</strong>
+        <span>${request.Reviewed_by || ""}</span>
+
+        <strong>Reviewed At</strong>
+        <span>${request.Reviewed_at || ""}</span>
+
+        <strong>Comments</strong>
+        <span>${request.Comments || ""}</span>
+      </div>
+    `;
+
+    modal.style.display = "flex";
   }
 
   function getMyEquipmentOptions() {
@@ -756,72 +1032,6 @@
         currentAssignRequest.Request_id,
         currentUser.Email
       );
-  }
-
-  function openRequestDetails(requestId) {
-    const request = currentRequests.find(item =>
-      String(item.Request_id || "").trim() ===
-      String(requestId || "").trim()
-    );
-
-    if (!request) {
-      alert("Request not found.");
-      return;
-    }
-
-    const modal = document.getElementById("requestDetailsModal");
-    const content = document.getElementById("requestDetailsContent");
-
-    content.innerHTML = `
-      <div style="display:grid; grid-template-columns:140px 1fr; gap:12px 18px;">
-        <strong>Request ID</strong>
-        <span>${request.Request_id || ""}</span>
-
-        <strong>Type</strong>
-        <span>${request.Request_type || ""}</span>
-
-        <strong>Requested By</strong>
-        <span>${request.Requested_name || ""}</span>
-
-        <strong>Team</strong>
-        <span>${request.Team || ""}</span>
-
-        <strong>Status</strong>
-        <span>${request.Status || ""}</span>
-
-        <strong>Device</strong>
-        <span>${request.Device || ""}</span>
-
-        <strong>Brand</strong>
-        <span>${request.Brand || ""}</span>
-
-        <strong>Model</strong>
-        <span>${request.Model || ""}</span>
-
-        <strong>SN</strong>
-        <span>${request.SN || ""}</span>
-
-        <strong>Internal SN</strong>
-        <span>${request["Internal SN"] || ""}</span>
-
-        <strong>Quantity</strong>
-        <span>${request.Quantity || ""}</span>
-
-        <strong>Created</strong>
-        <span>${request.Created_at || ""}</span>
-
-        <strong>Reviewed By</strong>
-        <span>${request.Reviewed_by || ""}</span>
-
-        <strong>Reviewed At</strong>
-        <span>${request.Reviewed_at || ""}</span>
-
-        <strong>Comments</strong>
-        <span>${request.Comments || ""}</span>
-      </div>
-    `;
-
-    modal.style.display = "flex";
   }
 
   function closeRequestDetails() {
