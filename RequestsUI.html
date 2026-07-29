@@ -424,6 +424,141 @@
     );
   }
 
+  function openRequestForm(type) {
+    currentRequestType = type;
+
+    const modal = document.getElementById("requestModal");
+    const title = document.getElementById("requestTitle");
+    const form = document.getElementById("requestForm");
+
+    if (!modal || !title || !form) {
+      console.error("Request modal elements were not found.");
+      return;
+    }
+
+    const deviceOptions = DEVICE_TYPES.map(device =>
+      `<option value="${device}">${device}</option>`
+    ).join("");
+
+    if (type === "request_equipment") {
+      title.textContent = "Request Equipment";
+
+      form.innerHTML = `
+        <label>Device Type *</label>
+
+        <select
+          id="requestDevice"
+          style="
+            width:100%;
+            padding:12px;
+            margin-top:8px;
+            border:1px solid #d0d5dd;
+            border-radius:10px;
+          ">
+          ${deviceOptions}
+        </select>
+
+        <label style="display:block; margin-top:18px;">
+          Quantity *
+        </label>
+
+        <select
+          id="requestQuantity"
+          style="
+            width:100%;
+            padding:12px;
+            margin-top:8px;
+            border:1px solid #d0d5dd;
+            border-radius:10px;
+          ">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+
+        <input
+          id="requestComments"
+          placeholder="Comments">
+      `;
+    }
+
+    if (type === "register_equipment") {
+      title.textContent = "Register Equipment";
+
+      form.innerHTML = `
+        <label>Device Type *</label>
+
+        <select
+          id="requestDevice"
+          style="
+            width:100%;
+            padding:12px;
+            margin-top:8px;
+            border:1px solid #d0d5dd;
+            border-radius:10px;
+          ">
+          ${deviceOptions}
+        </select>
+
+        <input id="requestBrand" placeholder="Brand">
+        <input id="requestModel" placeholder="Model">
+        <input id="requestSN" placeholder="Serial Number">
+        <input id="requestInternalSN" placeholder="Internal SN">
+        <input id="requestComments" placeholder="Comments">
+      `;
+    }
+
+    if (type === "damaged_equipment") {
+      title.textContent = "Report Damaged Equipment";
+
+      form.innerHTML = `
+        <label>Equipment *</label>
+
+        <select
+          id="requestDevice"
+          style="
+            width:100%;
+            padding:12px;
+            margin-top:8px;
+            border:1px solid #d0d5dd;
+            border-radius:10px;
+          ">
+          ${getMyEquipmentOptions()}
+        </select>
+
+        <input
+          id="requestComments"
+          placeholder="Comments">
+      `;
+    }
+
+    if (type === "return_equipment") {
+      title.textContent = "Return Equipment";
+
+      form.innerHTML = `
+        <label>Equipment *</label>
+
+        <select
+          id="requestDevice"
+          style="
+            width:100%;
+            padding:12px;
+            margin-top:8px;
+            border:1px solid #d0d5dd;
+            border-radius:10px;
+          ">
+          ${getMyEquipmentOptions()}
+        </select>
+
+        <input
+          id="requestComments"
+          placeholder="Comments">
+      `;
+    }
+
+    modal.style.display = "block";
+  }  
+
   function openRequestDetails(requestId) {
     const request = currentRequests.find(item =>
       String(item.Request_id || "").trim() ===
