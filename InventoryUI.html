@@ -750,7 +750,10 @@
     console.log("submitEditAssetRequest called");
 
     if (!currentEditingAsset) {
-      alert("No asset selected.");
+      showWarningMessage(
+        "No Asset Selected",
+        "Please select an asset before continuing."
+      );
       return;
     }
 
@@ -758,14 +761,20 @@
     const submitButton = document.getElementById("submitEditAssetButton");
 
     if (!reasonInput) {
-      alert("Reason field was not found.");
+      showWarningMessage(
+        "Unexpected Error",
+        "The reason field could not be found."
+      );
       return;
     }
 
     const reason = reasonInput.value.trim();
 
     if (!reason) {
-      alert("Please enter a reason for this update.");
+      showWarningMessage(
+        "Reason Required",
+        "Please enter a reason before submitting your request."
+      );
       return;
     }
 
@@ -779,6 +788,31 @@
         .value
         .trim()
     };
+
+    const originalAsset = {
+      Device: String(currentEditingAsset.Device || "").trim(),
+      Brand: String(currentEditingAsset.Brand || "").trim(),
+      Model: String(currentEditingAsset.Model || "").trim(),
+      SN: String(currentEditingAsset.SN || "").trim(),
+      "Internal SN": String(
+        currentEditingAsset["Internal SN"] || ""
+      ).trim()
+    };
+
+    const hasChanges =
+      originalAsset.Device !== updatedAsset.Device ||
+      originalAsset.Brand !== updatedAsset.Brand ||
+      originalAsset.Model !== updatedAsset.Model ||
+      originalAsset.SN !== updatedAsset.SN ||
+      originalAsset["Internal SN"] !== updatedAsset["Internal SN"];
+
+    if (!hasChanges) {
+      showWarningMessage(
+        "No changes detected",
+        "Please modify at least one field before submitting the request."
+      );
+      return;
+    }
 
     const request = {
       Request_type: "edit_equipment",
@@ -843,5 +877,52 @@
         }
       })
       .createRequest(request);
+  }
+
+  function showWarningMessage(title, message) {
+    let modal = document.getElementById("warningModal");
+
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "warningModal";
+      modal.className = "notification-overlay";
+
+      modal.innerHTML = `
+        <div class="notification-box">
+          <div class="notification-icon" style="
+            background:#FEF3C7;
+            color:#D97706;
+          ">
+            !
+          </div>
+
+          <div class="notification-title" id="warningModalTitle"></div>
+
+          <div class="notification-text" id="warningModalText"></div>
+
+          <button
+            class="button"
+            style="margin-top:20px;"
+            onclick="closeWarningMessage()">
+            OK
+          </button>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+    }
+
+    document.getElementById("warningModalTitle").textContent = title;
+    document.getElementById("warningModalText").textContent = message;
+
+    modal.style.display = "flex";
+  }
+
+  function closeWarningMessage() {
+    const modal = document.getElementById("warningModal");
+
+    if (modal) {
+      modal.style.display = "none";
+    }
   }
 </script>
