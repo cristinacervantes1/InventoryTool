@@ -2,25 +2,185 @@
   //INVENTORY  
   function showMyInventory() {
     setActiveMenu("menuMyInventory");
+
     document.getElementById("pageTitle").textContent = "My Inventory";
-    document.getElementById("pageSubtitle").textContent = "Estos son tus equipos asignados.";
+    document.getElementById("pageSubtitle").textContent = "";
 
     document.getElementById("content").innerHTML = `
-      <div class="card">
-        <h2>Actions</h2>
-        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-          <button class="button" onclick="openRequestForm('request_equipment')">Request Equipment</button>
-          <button class="button" onclick="openRequestForm('register_equipment')">Register Equipment</button>
-          <button class="button" onclick="openRequestForm('damaged_equipment')">Report Damaged Equipment</button>
-          <button class="button" onclick="openRequestForm('return_equipment')">Return Equipment</button>
-        </div>
-      </div>
+      <section class="inventory-page">
 
-      <div class="card">
-        <h2>My Equipment</h2>
-        <input type="text" id="searchInput" placeholder="Buscar en mi inventario..." oninput="filterTable()">
-        <div id="tableArea" class="empty">Cargando inventario...</div>
-      </div>
+        <div class="quick-actions-section">
+          <h2 class="section-title">Quick Actions</h2>
+
+          <div class="quick-actions-grid">
+
+            <button
+              type="button"
+              class="quick-action-card"
+              onclick="openRequestForm('request_equipment')">
+
+              <div class="quick-action-icon icon-request">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.8">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M2.25 3h1.386c.51 0 .955.343 1.087.835L5.1 5.25m0 0h14.4l-1.5 9H7.35m-2.25-9 2.25 9m0 0-1.125 2.25M7.35 14.25h10.65m-10.65 0L6.225 16.5m0 0h12.525M9 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm9 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z">
+                  </path>
+                </svg>
+              </div>
+
+              <div class="quick-action-content">
+                <div class="quick-action-title">
+                  Request Equipment
+                </div>
+
+                <div class="quick-action-description">
+                  Request a new device
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              class="quick-action-card"
+              onclick="openRequestForm('register_equipment')">
+
+              <div class="quick-action-icon icon-register">
+                  <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="2">
+
+                      <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M12 5v14M5 12h14">
+                      </path>
+                  </svg>
+              </div>
+
+              <div class="quick-action-content">
+                <div class="quick-action-title">
+                  Register Equipment
+                </div>
+
+                <div class="quick-action-description">
+                  Add new equipment
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              class="quick-action-card"
+              onclick="openRequestForm('damaged_equipment')">
+
+              <div class="quick-action-icon icon-damage">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.8">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 9v4m0 4h.01M10.3 3.84 2.82 17.25a2 2 0 001.75 3h14.86a2 2 0 001.75-3L13.7 3.84a2 2 0 00-3.4 0z">
+                  </path>
+                </svg>
+              </div>
+
+              <div class="quick-action-content">
+                <div class="quick-action-title">
+                  Report Damaged Equipment
+                </div>
+
+                <div class="quick-action-description">
+                  Report an equipment issue
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              class="quick-action-card"
+              onclick="openRequestForm('return_equipment')">
+
+              <div class="quick-action-icon icon-return">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.8">
+
+                  <path
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M9 14l-4-4m0 0 4-4m-4 4h11a4 4 0 010 8h-1">
+                  </path>
+                </svg>
+              </div>
+
+              <div class="quick-action-content">
+                <div class="quick-action-title">
+                  Return Equipment
+                </div>
+
+                <div class="quick-action-description">
+                  Return an assigned device
+                </div>
+              </div>
+            </button>
+
+          </div>
+        </div>
+
+        <div class="equipment-section">
+          <div class="equipment-section-header">
+            <h2 class="section-title">Equipment</h2>
+          </div>
+
+          <div class="equipment-search-wrapper">
+            <svg
+              class="equipment-search-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m21 21-4.35-4.35m1.35-5.4a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z">
+              </path>
+            </svg>
+
+            <input
+              type="text"
+              id="searchInput"
+              class="equipment-search-input"
+              placeholder="Search equipment..."
+              oninput="filterTable()">
+          </div>
+
+          <div
+            id="tableArea"
+            class="empty">
+            Loading equipment...
+          </div>
+        </div>
+
+      </section>
     `;
 
     if (appCache.myInventory !== null) {
@@ -37,7 +197,7 @@
       })
       .withFailureHandler(function(error) {
         document.getElementById("tableArea").innerHTML =
-          "Error cargando inventario: " + error.message;
+          "Error loading inventory: " + error.message;
 
         console.error(error);
       })

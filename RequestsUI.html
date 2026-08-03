@@ -3,31 +3,60 @@
     setActiveMenu("menuMyRequests");
 
     document.getElementById("pageTitle").textContent = "My Requests";
-    document.getElementById("pageSubtitle").textContent =
-      "Aquí aparecen tus solicitudes.";
+    document.getElementById("pageSubtitle").textContent = "";
 
     document.getElementById("content").innerHTML = `
-      <div class="card">
-        <div class="request-tabs">
-          <button
-            id="myActiveRequestsTab"
-            class="request-tab active"
-            onclick="showMyActiveRequests()">
-            Active Requests
-          </button>
+      <section class="requests-page">
 
-          <button
-            id="myRequestHistoryTab"
-            class="request-tab"
-            onclick="showMyRequestHistory()">
-            Request History
-          </button>
+        <div class="requests-controls-card">
+          <div class="request-tabs">
+            <button
+              id="myActiveRequestsTab"
+              class="request-tab active"
+              onclick="showMyActiveRequests()">
+              Active
+            </button>
+
+            <button
+              id="myRequestHistoryTab"
+              class="request-tab"
+              onclick="showMyRequestHistory()">
+              History
+            </button>
+          </div>
+
+          <div class="equipment-search-wrapper requests-search-wrapper">
+            <svg
+              class="equipment-search-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2">
+
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m21 21-4.35-4.35m1.35-5.4a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z">
+              </path>
+            </svg>
+
+            <input
+              type="text"
+              id="myRequestSearch"
+              class="equipment-search-input"
+              placeholder="Search requests..."
+              oninput="renderMyRequestsView()">
+          </div>
         </div>
 
-        <div id="requestsTable">
-          Loading requests...
+        <div class="requests-table-card">
+          <div id="requestsTable">
+            Loading requests...
+          </div>
         </div>
-      </div>
+
+      </section>
     `;
 
     currentMyRequestView = "active";
@@ -64,14 +93,33 @@
   function renderMyRequestsView() {
     const requests = appCache.myRequests || [];
 
+    const activeRequests = requests.filter(request =>
+      normalize(request.Status) === "pending"
+    );
+
+    const historyRequests = requests.filter(request => {
+      const status = normalize(request.Status);
+
+      return (
+        status === "approved" ||
+        status === "rejected"
+      );
+    });
+
     const activeTab = document.getElementById("myActiveRequestsTab");
     const historyTab = document.getElementById("myRequestHistoryTab");
 
-    if (activeTab && historyTab) {
+    if (activeTab) {
+      activeTab.textContent = `Active (${activeRequests.length})`;
+
       activeTab.classList.toggle(
         "active",
         currentMyRequestView === "active"
       );
+    }
+
+    if (historyTab) {
+      historyTab.textContent = `History (${historyRequests.length})`;
 
       historyTab.classList.toggle(
         "active",
@@ -79,14 +127,41 @@
       );
     }
 
-    const filteredRequests = requests.filter(request => {
-      const status = normalize(request.Status);
+    const requestsForCurrentTab =
+      currentMyRequestView === "active"
+        ? activeRequests
+        : historyRequests;
 
-      if (currentMyRequestView === "active") {
-        return status === "pending";
+    const searchInput =
+      document.getElementById("myRequestSearch");
+
+    const search = normalize(
+      searchInput ? searchInput.value : ""
+    );
+
+    const filteredRequests = requestsForCurrentTab.filter(request => {
+      if (!search) {
+        return true;
       }
 
-      return status === "approved" || status === "rejected";
+      const searchableText = [
+        request.Request_id,
+        request.Request_type,
+        formatRequestType(request.Request_type),
+        request.Status,
+        request.Device,
+        request.Brand,
+        request.Model,
+        request.SN,
+        request["Internal SN"],
+        getRequestCommentDisplay(request),
+        request.Created_at
+      ]
+        .map(value => String(value || ""))
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(search);
     });
 
     renderRequestsTable(
@@ -240,14 +315,14 @@
             id="activeRequestsTab"
             class="request-tab active"
             onclick="showActiveRequests()">
-            Active Requests
+            Active
           </button>
 
           <button
             id="requestHistoryTab"
             class="request-tab"
             onclick="showRequestHistory()">
-            Request History
+            History
           </button>
         </div>
 
