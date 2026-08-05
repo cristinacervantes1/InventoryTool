@@ -5,8 +5,7 @@
     setActiveMenu("menuUsers");
 
     document.getElementById("pageTitle").textContent = "Users";
-    document.getElementById("pageSubtitle").textContent =
-      "Manage users, roles, teams, and assigned equipment.";
+    document.getElementById("pageSubtitle").textContent ="Manage users, teams and assigned equipment";
 
     document.getElementById("content").innerHTML = `
       <div class="card">
@@ -18,10 +17,7 @@
           flex-wrap:wrap;
         ">
           <div>
-            <h2 style="margin:0;">All Users</h2>
-            <p style="margin:7px 0 0;">
-              View users and their current activity.
-            </p>
+            <h2 style="margin:0;">Directory</h2>
           </div>
 
           <button
@@ -322,6 +318,9 @@
 
     const errorBox =
       document.getElementById("addUserError");
+    
+    const saveButton =
+      document.getElementById("saveUserButton");
 
     const employeeIdInput =
       document.getElementById("newEmployeeId");
@@ -341,6 +340,13 @@
     if (errorBox) {
       errorBox.style.display = "none";
       errorBox.textContent = "";
+    }
+
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = "Add User";
+      saveButton.style.opacity = "1";
+      saveButton.style.cursor = "pointer";
     }
 
     modal.style.display = "flex";

@@ -303,10 +303,7 @@
         ? "Team Requests"
         : "Requests";
 
-    document.getElementById("pageSubtitle").textContent =
-      role === "team_admin"
-        ? "Solicitudes de tu equipo."
-        : "Todas las solicitudes.";
+    document.getElementById("pageSubtitle").textContent = "";
 
     document.getElementById("content").innerHTML = `
       <div class="card">
@@ -316,6 +313,7 @@
             class="request-tab active"
             onclick="showActiveRequests()">
             Active
+            <span id="activeRequestsCount" class="tab-count">0</span>
           </button>
 
           <button
@@ -323,16 +321,34 @@
             class="request-tab"
             onclick="showRequestHistory()">
             History
+            <span id="requestHistoryCount" class="tab-count">0</span>
           </button>
         </div>
 
         <div class="request-filters">
 
-          <input
-            id="requestSearch"
-            type="text"
-            placeholder="Search requests..."
-            oninput="filterVisibleRequests()">
+          <div class="request-search-wrapper">
+            <svg
+              class="request-search-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2">
+
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m21 21-4.35-4.35m1.35-5.4a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z">
+              </path>
+            </svg>
+
+            <input
+              id="requestSearch"
+              type="text"
+              placeholder="Search requests..."
+              oninput="filterVisibleRequests()">
+          </div>
 
           <select
             id="requestTypeFilter"
@@ -407,8 +423,38 @@
   }
 
   function renderAdminRequestsView() {
-    const activeTab = document.getElementById("activeRequestsTab");
-    const historyTab = document.getElementById("requestHistoryTab");
+    const activeTab =
+      document.getElementById("activeRequestsTab");
+
+    const historyTab =
+      document.getElementById("requestHistoryTab");
+
+    const activeCountElement =
+      document.getElementById("activeRequestsCount");
+
+    const historyCountElement =
+      document.getElementById("requestHistoryCount");
+
+    const activeCount = currentRequests.filter(request =>
+      normalize(request.Status) === "pending"
+    ).length;
+
+    const historyCount = currentRequests.filter(request => {
+      const status = normalize(request.Status);
+
+      return (
+        status === "approved" ||
+        status === "rejected"
+      );
+    }).length;
+
+    if (activeCountElement) {
+      activeCountElement.textContent = activeCount;
+    }
+
+    if (historyCountElement) {
+      historyCountElement.textContent = historyCount;
+    }
 
     if (activeTab && historyTab) {
       activeTab.classList.toggle(
@@ -421,6 +467,7 @@
         currentRequestView === "history"
       );
     }
+
     filterVisibleRequests();
   }
 

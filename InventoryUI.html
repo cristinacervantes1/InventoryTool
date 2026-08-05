@@ -211,29 +211,71 @@
 
     if (role === "team_admin") {
       document.getElementById("pageTitle").textContent = "Team Inventory";
-      document.getElementById("pageSubtitle").textContent = "Inventario de tu equipo.";
+      document.getElementById("pageSubtitle").textContent = "";
     } else {
       document.getElementById("pageTitle").textContent = "Inventory";
-      document.getElementById("pageSubtitle").textContent = "Inventario general de equipos.";
+      document.getElementById("pageSubtitle").textContent = "";
     }
 
     document.getElementById("content").innerHTML = `
-      <div class="card">
-        <h2>${role === "team_admin" ? "Team Inventory Overview" : "Inventory Overview"}</h2>
-        <div id="inventorySummary"></div>
-      </div>
+      <section class="inventory-page">
 
-      <div class="card" id="inventoryTableCard" style="display:none;">
-        <h2 id="inventoryTableTitle">Available Equipment</h2>
+        <div
+          class="equipment-section"
+          id="inventorySummaryCard">
+          <div id="inventorySummary"></div>
+        </div>
 
-        <input
-          type="text"
-          id="searchInput"
-          placeholder="Search available equipment..."
-          oninput="filterTable()">
+        <div
+          class="equipment-section"
+          id="inventoryTableCard"
+          style="display:none;">
 
-        <div id="tableArea"></div>
-      </div>
+          <div class="equipment-section-header">
+            <div>
+              <button
+                type="button"
+                class="inventory-back-button"
+                onclick="showDeviceTypesOverview()">
+                ← Back to Device Types
+              </button>
+
+              <h2
+                id="inventoryTableTitle"
+                class="section-title inventory-detail-title">
+                Available Equipment
+              </h2>
+            </div>
+          </div>
+
+          <div class="equipment-search-wrapper">
+            <svg
+              class="equipment-search-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2">
+
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m21 21-4.35-4.35m1.35-5.4a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z">
+              </path>
+            </svg>
+
+            <input
+              type="text"
+              id="searchInput"
+              class="equipment-search-input"
+              placeholder="Search available equipment..."
+              oninput="filterTable()">
+          </div>
+
+          <div id="tableArea"></div>
+        </div>
+
+      </section>
     `;
 
     if (appCache.adminInventory !== null) {
@@ -330,77 +372,260 @@
       }
     });
 
-    const deviceCards = Object.entries(summary)
+    const deviceRows = Object.entries(summary)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([device, counts]) => `
-        <button
-          class="device-summary-card"
-          onclick="filterInventoryByDevice('${device.replace(/'/g, "\\'")}')">
+      .map(([device, counts]) => {
+        let statusText = "Available";
+        let statusClass = "device-status-available";
 
-          <div class="device-summary-name">
-            ${getDeviceIcon(device)}
-            <span>${device}</span>
-          </div>
+        if (counts.available === 0) {
+          statusText = "Out of Stock";
+          statusClass = "device-status-out";
+        } else if (counts.available <= 10) {
+          statusText = "Low Stock";
+          statusClass = "device-status-low";
+        }
 
-          <div class="device-summary-total">
-            ${counts.total}
-            <span class="device-summary-label">Total</span>
-          </div>
+        const safeDevice = device.replace(/'/g, "\\'");
 
-          <div class="device-summary-available">
-            ${counts.available} available
-          </div>
-        </button>
-      `)
+        return `
+          <tr
+            class="device-type-row"
+            onclick="filterInventoryByDevice('${safeDevice}')">
+
+            <td>
+              <div class="device-type-name">
+                <span class="device-type-icon">
+                  ${getDeviceIcon(device)}
+                </span>
+
+                <span>${device}</span>
+              </div>
+            </td>
+
+            <td>${counts.total}</td>
+
+            <td>${counts.available}</td>
+
+            <td>
+              <span class="device-status-badge ${statusClass}">
+                ${statusText}
+              </span>
+            </td>
+
+            <td class="device-type-action">
+              ›
+            </td>
+          </tr>
+        `;
+      })
       .join("");
 
     container.innerHTML = `
-      <div class="inventory-main-stats">
-        <div class="inventory-main-stat">
-          <div class="inventory-main-number">
-            ${totalAssets}
+      <div class="inventory-kpi-bar">
+
+        <button
+          type="button"
+          class="inventory-kpi-card inventory-kpi-total">
+
+          <div class="inventory-kpi-icon">
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.8">
+
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 3 3 7.5 12 12 21 7.5 12 3" />
+
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 12 12 16.5 21 12" />
+
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 16.5 12 21 21 16.5" />
+            </svg>
           </div>
 
-          <div class="inventory-main-label">
-            Total Assets
-          </div>
-        </div>
+          <div class="inventory-kpi-content">
+            <div class="inventory-kpi-number">
+              ${totalAssets}
+            </div>
 
-        <div class="inventory-main-stat">
-          <div class="inventory-main-number">
-            ${totalAvailable}
+            <div class="inventory-kpi-label">
+              Total Assets
+            </div>
+
+            <div class="inventory-kpi-description">
+              All registered assets
+            </div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="inventory-kpi-card inventory-kpi-available">
+
+          <div class="inventory-kpi-icon">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.8">
+
+              <circle cx="12" cy="12" r="9"></circle>
+
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m8 12 2.5 2.5L16.5 8.5">
+              </path>
+            </svg>
           </div>
 
-          <div class="inventory-main-label">
-            Available
-          </div>
-        </div>
+          <div class="inventory-kpi-content">
+            <div class="inventory-kpi-number">
+              ${totalAvailable}
+            </div>
 
-        <div class="inventory-main-stat">
-          <div class="inventory-main-number">
-            ${totalDamaged}
+            <div class="inventory-kpi-label">
+              Available
+            </div>
+
+            <div class="inventory-kpi-description">
+              Ready to assign
+            </div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="inventory-kpi-card inventory-kpi-damaged">
+
+          <div class="inventory-kpi-icon">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.8">
+
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 9v4m0 4h.01M10.3 3.84 2.82 17.25a2 2 0 0 0 1.75 3h14.86a2 2 0 0 0 1.75-3L13.7 3.84a2 2 0 0 0-3.4 0Z">
+              </path>
+            </svg>
           </div>
 
-          <div class="inventory-main-label">
-            Damaged
+          <div class="inventory-kpi-content">
+            <div class="inventory-kpi-number">
+              ${totalDamaged}
+            </div>
+
+            <div class="inventory-kpi-label">
+              Damaged
+            </div>
+
+            <div class="inventory-kpi-description">
+              Requires attention
+            </div>
           </div>
-        </div>
+        </button>
       </div>
 
-      <div class="inventory-device-grid">
-        ${deviceCards}
+      <div class="device-types-section">
+
+        <div class="device-types-header">
+          <h2 class="section-title">
+            Device Types
+          </h2>
+
+          <div class="device-types-tools">
+            <div class="equipment-search-wrapper device-type-search-wrapper">
+              <svg
+                class="equipment-search-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2">
+
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="m21 21-4.35-4.35m1.35-5.4a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z">
+                </path>
+              </svg>
+
+              <input
+                type="text"
+                id="deviceTypeSearch"
+                class="equipment-search-input"
+                placeholder="Search device types..."
+                oninput="filterDeviceTypes()">
+            </div>
+          </div>
+        </div>
+
+        <div class="device-types-table-wrapper">
+          <table class="device-types-table">
+            <thead>
+              <tr>
+                <th>Device Type</th>
+                <th>Total Assets</th>
+                <th>Available</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+
+            <tbody id="deviceTypesTableBody">
+              ${deviceRows}
+            </tbody>
+          </table>
+        </div>
+
       </div>
     `;
   }
 
+  function filterDeviceTypes() {
+    const input = document.getElementById("deviceTypeSearch");
+
+    if (!input) {
+      return;
+    }
+
+    const search = normalize(input.value);
+
+    const rows = document.querySelectorAll(
+      "#deviceTypesTableBody .device-type-row"
+    );
+
+    rows.forEach(row => {
+      const text = normalize(row.textContent);
+
+      row.style.display =
+        !search || text.includes(search)
+          ? ""
+          : "none";
+    });
+  }  
+
   function filterInventoryByDevice(device) {
     const normalizedDevice = normalize(device);
-
     const fullInventory = appCache.adminInventory || [];
 
     const filteredData = fullInventory.filter(asset => {
       const assetDevice = normalize(asset.Device);
-
       const assignee = normalize(asset.Assignee);
 
       return (
@@ -409,36 +634,77 @@
       );
     });
 
-    // La búsqueda posterior también se limita a estos disponibles.
     currentData = filteredData;
+    inventoryAssignmentMode = true;
 
-    const tableCard = document.getElementById("inventoryTableCard");
-    const tableTitle = document.getElementById("inventoryTableTitle");
-    const searchInput = document.getElementById("searchInput");
+    const summaryCard =
+      document.getElementById("inventorySummaryCard");
+
+    const tableCard =
+      document.getElementById("inventoryTableCard");
+
+    const tableTitle =
+      document.getElementById("inventoryTableTitle");
+
+    const searchInput =
+      document.getElementById("searchInput");
+
+    if (summaryCard) {
+      summaryCard.style.display = "none";
+    }
 
     if (tableCard) {
       tableCard.style.display = "block";
     }
 
     if (tableTitle) {
-      tableTitle.textContent = `${device} — Available`;
+      tableTitle.textContent =
+        `${device} — ${filteredData.length} Available`;
     }
 
     if (searchInput) {
       searchInput.value = "";
-      searchInput.placeholder = `Search available ${device}...`;
+      searchInput.placeholder =
+        `Search available ${device}...`;
     }
-
-    inventoryAssignmentMode = true;
 
     renderTable(filteredData);
 
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  }
+
+  function showDeviceTypesOverview() {
+    const summaryCard =
+      document.getElementById("inventorySummaryCard");
+
+    const tableCard =
+      document.getElementById("inventoryTableCard");
+
+    const searchInput =
+      document.getElementById("searchInput");
+
+    inventoryAssignmentMode = false;
+    currentData = appCache.adminInventory || [];
+
     if (tableCard) {
-      tableCard.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
+      tableCard.style.display = "none";
     }
+
+    if (summaryCard) {
+      summaryCard.style.display = "block";
+    }
+
+    if (searchInput) {
+      searchInput.value = "";
+    }
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
   }
 
   function renderTable(data) {

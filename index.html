@@ -8,14 +8,31 @@
 
 <body>
   <div class="login-page" id="loginPage">
-    <h1>Inventory Tool</h1>
-    <p>Ingresa tu correo para continuar.</p>
+    <div class="login-card">
+      <div class="login-logo">
+        <img
+          id="loginLogoImage"
+          alt="EssigQ">
+      </div>
+      
+      <h1 class="login-title">
+        Asset Management Portal
+      </h1>
 
-    <div class="card">
-      <h2>Login</h2>
-      <input type="email" id="emailInput" placeholder="correo@empresa.com">
-      <br><br>
-      <button class="button" onclick="loginUser()">Continuar</button>
+      <p class="login-subtitle">
+        Sign in with your company email
+      </p>
+
+      <input
+        type="email"
+        id="emailInput"
+        placeholder="name@essigq.com">
+
+      <button
+        class="button login-button"
+        onclick="loginUser()">
+        Continue
+      </button>
       <p id="loginMessage"></p>
     </div>
   </div>
@@ -53,7 +70,7 @@
   </div>
 
 <?!= include("Modals"); ?>
-
+<?!= include("LoginAssets"); ?>
 <?!= include("CoreUI"); ?>
 <?!= include("UtilsUI"); ?>
 <?!= include("UsersUI"); ?>
