@@ -55,7 +55,7 @@
         }
 
         currentUser = user;
-
+        updateBackupButtonVisibility();
         document.getElementById("loginPage").style.display = "none";
         document.getElementById("app").style.display = "block";
         document.getElementById("userInfo").textContent = `${user.Name} | ${user.Team}`;
@@ -115,5 +115,110 @@
     document.querySelectorAll(".menu-item").forEach(item => item.classList.remove("active"));
     const activeItem = document.getElementById(activeId);
     if (activeItem) activeItem.classList.add("active");
+  }
+
+function updateBackupButtonVisibility() {
+  const backupButton =
+    document.getElementById("menuDownloadBackup");
+
+  if (!backupButton || !currentUser) {
+    return;
+  }
+
+  backupButton.style.display =
+    currentUser.CanDownloadBackup
+      ? "block"
+      : "none";
+}
+
+
+  function downloadLocalBackup() {
+    if (!currentUser) {
+      alert("No user is currently logged in.");
+      return;
+    }
+
+    const button =
+      document.getElementById("menuDownloadBackup");
+
+    const originalText = button
+      ? button.textContent
+      : "Download Backup";
+
+    if (button) {
+      button.textContent = "Preparing Backup...";
+      button.style.pointerEvents = "none";
+      button.style.opacity = "0.6";
+    }
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+
+        const byteCharacters =
+          atob(result.base64);
+
+        const byteNumbers =
+          new Array(byteCharacters.length);
+
+        for (
+          let i = 0;
+          i < byteCharacters.length;
+          i++
+        ) {
+          byteNumbers[i] =
+            byteCharacters.charCodeAt(i);
+        }
+
+        const byteArray =
+          new Uint8Array(byteNumbers);
+
+        const blob = new Blob(
+          [byteArray],
+          {type: result.mimeType}
+        );
+
+        const url =
+          URL.createObjectURL(blob);
+
+        const link =
+          document.createElement("a");
+
+        link.href = url;
+        link.download = result.fileName;
+
+        document.body.appendChild(link);
+
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(url);
+
+        if (button) {
+          button.textContent = originalText;
+          button.style.pointerEvents = "";
+          button.style.opacity = "";
+        }
+      })
+      .withFailureHandler(function(error) {
+
+        console.error(
+          "Backup download error:",
+          error
+        );
+
+        alert(
+          "The backup could not be downloaded.\n\n" +
+          error.message
+        );
+
+        if (button) {
+          button.textContent = originalText;
+          button.style.pointerEvents = "";
+          button.style.opacity = "";
+        }
+      })
+      .downloadSpreadsheetBackup(
+        currentUser.Email
+      );
   }
 </script>
